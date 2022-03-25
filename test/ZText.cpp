@@ -4,7 +4,7 @@ g++ -std=c++20 -Wall -Werror -o ZText ZText.cpp && ./ZText
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "./doctest.h"
 
-#define ZTEXT_DEBUG_ENABLED
+#define ZTEXT_DEBUG_ENABLED 1
 #define ZTEXT_IMPLEMENTATION
 #define ZTEXT_IMPLEMENTATION_TEST
 #include "../src/include/ZText.h"
