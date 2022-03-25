@@ -292,7 +292,44 @@ namespace ztext
 	}
 
 
-	std::string string_clean_whitespace(std::string string
+	std::string string_clean_escapes_(std::string string
+		) noexcept
+	{
+		size_t index = 0;
+
+		while(index < string.size())
+		{
+			if(string[index] != '\\')
+			{
+				index++;
+
+				continue;
+			}
+
+			if((index + 2) < string.size())
+			{
+				if(string[index + 1] == '{'
+					&& string[index + 2] == '{'
+					)
+				{
+					string.erase(index, 1);
+				}
+				else if(string[index + 1] == '}'
+					&& string[index + 2] == '}'
+					)
+				{
+					string.erase(index, 1);
+				}
+			}
+
+			index += 2;
+		}
+
+		return string;
+	}
+
+
+	std::string string_clean_whitespace_(std::string string
 		) noexcept
 	{
 		size_t index_1 = 0;
@@ -546,7 +583,13 @@ namespace ztext
 		{
 			if(string[index_end] == '{')
 			{
-				break;
+				if(string[index_end - 1] != '\\'
+					&& (index_end + 1) < string_len
+					&& string[index_end + 1] == '{'
+					)
+				{
+					break;
+				}
 			}
 
 			index_end++;
@@ -554,7 +597,8 @@ namespace ztext
 
 		std::string text = string.substr(index_begin, index_end);
 		text = string_trim_(text);
-		text = string_clean_whitespace(text);
+		text = string_clean_whitespace_(text);
+		text = string_clean_escapes_(text);
 
 		if(text.empty() == true)
 		{
@@ -753,6 +797,28 @@ namespace ztext
 			
 			ztext::Element* element = ztext::element_next(root);
 			CHECK(ztext::element_eval(element) == "X Y Z");
+		}
+
+		SUBCASE("Before Token")
+		{
+			std::string text = "foo {{token}}";
+
+			error = ztext::parse(zt, text);
+			CHECK(error == Error_None);
+			
+			ztext::Element* element = ztext::element_next(root);
+			CHECK(ztext::element_eval(element) == "foo");
+		}
+
+		SUBCASE("Escaped Token")
+		{
+			std::string text = "foo \\{{token\\}} bar";
+
+			error = ztext::parse(zt, text);
+			CHECK(error == Error_None);
+			
+			ztext::Element* element = ztext::element_next(root);
+			CHECK(ztext::element_eval(element) == "foo {{token}} bar");
 		}
 
 		destroy(zt);
