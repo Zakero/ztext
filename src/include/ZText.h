@@ -59,9 +59,11 @@ namespace ztext
 	[[]]          void            variable_set(ZText*, const std::string, const std::string) noexcept;
 	[[]]          void            variable_destroy(ZText*, const std::string) noexcept;
 
+	#ifdef ZTEXT_DEBUG_ENABLED
 	[[]]          void            debug_element(Element*) noexcept;
 	[[]]          void            debug_command(ZText*) noexcept;
 	[[]]          void            debug_variable(ZText*) noexcept;
+	#endif
 }
 
 #ifdef ZTEXT_IMPLEMENTATION // {{{
@@ -78,7 +80,7 @@ namespace ztext
 
 	struct Element
 	{
-		ZText*        z_script;
+		ZText*          ztext;
 		Element*        next     = nullptr;
 		Element*        prev     = nullptr;
 		Element*        child    = nullptr;
@@ -96,92 +98,284 @@ namespace ztext
 	};
 
 
-	ztext::Element* element_create(ztext::ZText* z_script
+	// {{{ Private
+
+	ztext::Element* element_create_(ztext::ZText* ztext
 		, ztext::Type type
 		) noexcept
 	{
 		ztext::Element* element = new ztext::Element;
-		element->z_script = z_script;
+		element->ztext = ztext;
 		element->type     = type;
 
 		return element;
 	}
 
+	// }}}
+	// {{{ Util
+	// {{{ Util: create/destroy
 
 	ZText* create() noexcept
 	{
-		ZText* z_script = new ZText;
+		ZText* ztext = new ZText;
 
-		z_script->root_element.z_script = z_script;
-		z_script->root_element.type     = Type::Root;
+		ztext->root_element.ztext = ztext;
+		ztext->root_element.type  = Type::Root;
 
-		return z_script;
+		return ztext;
 	};
 
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("create")
+	{
+		ZText* ztext = create();
 
-	void destroy(ZText*& z_script
+		CHECK(ztext                     != nullptr);
+		CHECK(ztext->root_element.ztext == ztext);
+		CHECK(ztext->root_element.type  == Type::Root);
+
+		destroy(ztext);
+	}
+	#endif // }}}
+
+
+	void destroy(ZText*& ztext
 		) noexcept
 	{
-		clear(z_script);
+		clear(ztext);
 
-		delete z_script;
-		z_script = nullptr;
+		delete ztext;
+		ztext = nullptr;
 	}
 
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("destroy")
+	{
+		ZText* ztext = create();
+		destroy(ztext);
 
-	void clear(ZText* z_script
+		CHECK(ztext == nullptr);
+	}
+	#endif // }}}
+
+	// }}}
+	// {{{ Util: clear
+
+	void clear(ZText* ztext
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
 
-		clear_commands(z_script);
-		clear_elements(z_script);
-		clear_variables(z_script);
+		clear_commands(ztext);
+		clear_elements(ztext);
+		clear_variables(ztext);
 	}
 
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("clear")
+	{
+		ZText*   ztext   = create();
+		Element* element = element_append_text(root_element(ztext)
+			, "text");
+		variable_set(ztext, "foo", "bar");
+		command_set(ztext, "cmd", [](ZText*, Element*){return std::string();});
 
-	void clear_commands(ZText* z_script
+		CHECK(ztext                           != nullptr);
+		CHECK(element                         != nullptr);
+		CHECK(ztext->root_element.next        == element);
+		CHECK(ztext->variable.contains("foo") == true);
+		CHECK(ztext->command.contains("cmd")  == true);
+
+		clear(ztext);
+
+		CHECK(ztext                           != nullptr);
+		CHECK(ztext->root_element.next        == nullptr);
+		CHECK(ztext->variable.contains("foo") == false);
+		CHECK(ztext->command.contains("cmd")  == false);
+
+		destroy(ztext);
+	}
+	#endif // }}}
+
+
+	void clear_commands(ZText* ztext
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
 
-		z_script->command = {};
+		ztext->command = {};
 	}
 
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("clear/command")
+	{
+		ZText* ztext = create();
+		command_set(ztext, "cmd", [](ZText*, Element*){return std::string();});
 
-	void clear_elements(ZText* z_script
+		CHECK(ztext                          != nullptr);
+		CHECK(ztext->command.contains("cmd") == true);
+
+		clear(ztext);
+
+		CHECK(ztext->command.contains("cmd") == false);
+
+		destroy(ztext);
+	}
+	#endif // }}}
+
+
+	void clear_elements(ZText* ztext
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
 
-		Element* element = z_script->root_element.next;
+		Element* element = ztext->root_element.next;
 		while(element != nullptr)
 		{
 			element = element_destroy(element);
 		}
 	}
 
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("clear/element")
+	{
+		ZText*   ztext   = create();
+		Element* element = element_append_text(root_element(ztext)
+			, "text");
 
-	void clear_variables(ZText* z_script
+		CHECK(ztext                    != nullptr);
+		CHECK(element                  != nullptr);
+		CHECK(ztext->root_element.next == element);
+
+		clear(ztext);
+
+		CHECK(ztext->root_element.next == nullptr);
+
+		destroy(ztext);
+	}
+	#endif // }}}
+
+
+	void clear_variables(ZText* ztext
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
 
-		z_script->variable = {};
+		ztext->variable = {};
 	}
 
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("clear/variable")
+	{
+		ZText* ztext = create();
+		variable_set(ztext, "foo", "bar");
+
+		CHECK(ztext                           != nullptr);
+		CHECK(ztext->variable.contains("foo") == true);
+
+		clear(ztext);
+
+		CHECK(ztext->variable.contains("foo") == false);
+
+		destroy(ztext);
+	}
+	#endif // }}}
+
+	// }}}
+	// }}}
+	// {{{ Parse
+
+	constexpr char Identifier_Command  = '(';
+	constexpr char Identifier_Variable = '$';
+	constexpr char Assignment          = '=';
+
+	struct Token
+	{
+		size_t begin          = 0;
+		size_t end            = 0;
+		size_t name_begin     = 0;
+		size_t name_end       = 0;
+		size_t property_begin = 0;
+		size_t property_end   = 0;
+		size_t content_begin  = 0;
+		size_t content_end    = 0;
+		size_t indentifier    = 0;
+		size_t assignment     = 0;
+		bool   is_valid       = false;
+	};
+
+
+	void parse(ZText* ztext
+		, const std::string string
+		) noexcept
+	{
+		if(ztext == nullptr)
+		{
+			// Error
+		}
+
+		if(string.empty() == true)
+		{
+			return;
+		}
+
+#if 0
+		size_t   index = 0;
+		Type     token_type = Type::Text;
+		Element* element = nullptr;
+
+		if(string[0] == '{' && string[1] == '{')
+		{
+			token_type = parse_token_type(string, index);
+
+			if(token_type == Type::Variable)
+			{
+				element = parse_variable(ztext, string, index);
+			}
+
+			if(token_type == Type::Command)
+			{
+				element = parse_command(ztext, string, index);
+			}
+
+			if(element)
+			{
+				debug_element(element);
+			}
+		}
+#endif
+	}
+
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("parse/text")
+	{
+		ZText* ztext = create();
+		std::string text = "Some random text.";
+
+		parse(ztext, text);
+
+		Element* element = root_element(ztext);
+
+		CHECK(element != nullptr);
+		CHECK(element_eval(element) == text);
+
+		destroy(ztext);
+	}
+	#endif // }}}
+
+	// }}}
 
 	Type parse_token_type(const std::string& string
 		, const size_t start
@@ -197,7 +391,7 @@ namespace ztext
 	}
 
 
-	Element* parse_command(ZText* z_script
+	Element* parse_command(ZText* ztext
 		, const std::string& string
 		, size_t&            index
 		) noexcept
@@ -241,7 +435,7 @@ namespace ztext
 			return nullptr;
 		}
 
-		Element* element = element_create(z_script
+		Element* element = element_create_(ztext
 			, Type::Command
 			);
 		element->text = name;
@@ -254,7 +448,7 @@ namespace ztext
 	}
 
 
-	Element* parse_variable(ZText* z_script
+	Element* parse_variable(ZText* ztext
 		, const std::string& string
 		, size_t&            index
 		) noexcept
@@ -292,7 +486,7 @@ namespace ztext
 			return nullptr;
 		}
 
-		Element* element = element_create(z_script
+		Element* element = element_create_(ztext
 			, Type::Variable
 			);
 		element->text = name;
@@ -337,58 +531,18 @@ namespace ztext
 			return nullptr;
 		}
 
-		variable_set(z_script, name, value);
+		variable_set(ztext, name, value);
 
 		return element;
 	}
 
 
-	void parse(ZText* z_script
-		, const std::string string
-		) noexcept
-	{
-		if(z_script == nullptr)
-		{
-			// Error
-		}
-
-		if(string.empty() == true)
-		{
-			return;
-		}
-
-		size_t   index = 0;
-		Type     token_type = Type::Text;
-		Element* element = nullptr;
-
-		if(string[0] == '{' && string[1] == '{')
-		{
-			token_type = parse_token_type(string, index);
-
-			if(token_type == Type::Variable)
-			{
-				element = parse_variable(z_script, string, index);
-			}
-
-			if(token_type == Type::Command)
-			{
-				element = parse_command(z_script, string, index);
-			}
-
-			if(element)
-			{
-				debug_element(element);
-			}
-		}
-	}
-
-
-	void command_set(ZText* z_script
+	void command_set(ZText* ztext
 		, const std::string   name
 		, const CommandLambda command
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
@@ -403,15 +557,15 @@ namespace ztext
 			// Error
 		}
 
-		z_script->command[name] = command;
+		ztext->command[name] = command;
 	}
 
 
-	void command_destroy(ZText* z_script
+	void command_destroy(ZText* ztext
 		, const std::string name
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
@@ -421,12 +575,12 @@ namespace ztext
 			// Error
 		}
 
-		if(z_script->command.contains(name) == false)
+		if(ztext->command.contains(name) == false)
 		{
 			// Error
 		}
 
-		z_script->command.erase(name);
+		ztext->command.erase(name);
 	}
 
 
@@ -445,7 +599,7 @@ namespace ztext
 
 		if(command->child == nullptr)
 		{
-			command->child = element_create(command->z_script
+			command->child = element_create_(command->ztext
 				, Type::Text
 				);
 		}
@@ -523,12 +677,12 @@ namespace ztext
 	}
 
 
-	void variable_set(ZText* z_script
+	void variable_set(ZText* ztext
 		, const std::string name
 		, const std::string value
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
@@ -538,15 +692,15 @@ namespace ztext
 			// Error
 		}
 
-		z_script->variable[name] = value;
+		ztext->variable[name] = value;
 	}
 
 
-	void variable_destroy(ZText* z_script
+	void variable_destroy(ZText* ztext
 		, const std::string    name
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
@@ -556,25 +710,26 @@ namespace ztext
 			// Error
 		}
 
-		if(z_script->variable.contains(name) == false)
+		if(ztext->variable.contains(name) == false)
 		{
 			// Error
 		}
 
-		z_script->variable.erase(name);
+		ztext->variable.erase(name);
 	}
 
 
-	Element* root_element(ZText* z_script
+	Element* root_element(ZText* ztext
 		) noexcept
 	{
-		if(z_script == nullptr)
+		if(ztext == nullptr)
 		{
 			// Error
 		}
 
-		return &z_script->root_element;
+		return &ztext->root_element;
 	}
+
 
 
 	void element_append(Element* element_prev
@@ -604,7 +759,7 @@ namespace ztext
 			// error
 		}
 
-		Element* new_element = element_create(element->z_script
+		Element* new_element = element_create_(element->ztext
 			, Type::Command
 			);
 		new_element->text = command_name;
@@ -624,7 +779,7 @@ namespace ztext
 			// error
 		}
 
-		Element* new_element = element_create(element->z_script
+		Element* new_element = element_create_(element->ztext
 			, Type::Text
 			);
 		new_element->text = text;
@@ -644,7 +799,7 @@ namespace ztext
 			// error
 		}
 
-		Element* new_element = element_create(element->z_script
+		Element* new_element = element_create_(element->ztext
 			, Type::Variable
 			);
 		new_element->text = variable_name;
@@ -686,7 +841,7 @@ namespace ztext
 			element->child = element_destroy(element->child);
 		}
 
-		element->z_script = nullptr;
+		element->ztext = nullptr;
 		element->next     = nullptr;
 		element->prev     = nullptr;
 		element->child    = nullptr;
@@ -706,12 +861,12 @@ namespace ztext
 	{
 		std::string name = element->text;
 
-		if(element->z_script->command.contains(name) == false)
+		if(element->ztext->command.contains(name) == false)
 		{
 			return {};
 		}
 
-		std::string value = element->z_script->command[name](element->z_script, element);
+		std::string value = element->ztext->command[name](element->ztext, element);
 
 		// Recursive Variables?
 
@@ -724,12 +879,12 @@ namespace ztext
 	{
 		std::string name = element->text;
 
-		if(element->z_script->variable.contains(name) == false)
+		if(element->ztext->variable.contains(name) == false)
 		{
 			return {};
 		}
 
-		std::string value = element->z_script->variable[name];
+		std::string value = element->ztext->variable[name];
 
 		// Recursive Variables?
 
@@ -781,10 +936,12 @@ namespace ztext
 	}
 
 
+	// {{{ debug
+	#ifdef ZTEXT_DEBUG_ENABLED
+
 	void debug_element(Element* element
 		) noexcept
 	{
-		#ifdef ZTEXT_DEBUG_ENABLED
 		printf("id  : %p\n", element);
 		printf("prev: %p\n", element->prev);
 		printf("next: %p\n", element->next);
@@ -822,45 +979,37 @@ namespace ztext
 				}
 				break;
 		}
-		#else
-		(void*)element;
-		#endif
 	}
 
 
-	void debug_command(ZText* z_script
+	void debug_command(ZText* ztext
 		) noexcept
 	{
-		#ifdef ZTEXT_DEBUG_ENABLED
-		for(auto& [ name, value ] : z_script->command)
+		for(auto& [ name, value ] : ztext->command)
 		{
 			printf("%s()\n", name.c_str());
 		}
-		#else
-		(void*)z_script;
-		#endif
 	}
 
 
-	void debug_variable(ZText* z_script
+	void debug_variable(ZText* ztext
 		) noexcept
 	{
-		#ifdef ZTEXT_DEBUG_ENABLED
 		size_t name_len = 0;
 
-		for(auto& [ name, value ] : z_script->variable)
+		for(auto& [ name, value ] : ztext->variable)
 		{
 			name_len = std::max(name_len, name.size());
 		}
 
-		for(auto& [ name, value ] : z_script->variable)
+		for(auto& [ name, value ] : ztext->variable)
 		{
 			printf("%-*s: \"%s\"\n", (int)name_len, name.c_str(), value.c_str());
 		}
-		#else
-		(void*)z_script;
-		#endif
 	}
+
+	#endif
+	// }}}
 }
 
 #endif // }}}

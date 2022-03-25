@@ -6,6 +6,7 @@ g++ -std=c++20 -Wall -Werror -o ZText ZText.cpp && ./ZText
 
 #define ZTEXT_DEBUG_ENABLED
 #define ZTEXT_IMPLEMENTATION
+#define ZTEXT_IMPLEMENTATION_TEST
 #include "../src/include/ZText.h"
 #include <stdio.h>
 #include <sstream>
@@ -147,7 +148,7 @@ int main(int argc, char** argv)
 	}
 
 	// --- Misc Stuff --- ///
-	manual_tests();
+	//manual_tests();
 
 	// --- Done --- ///
 	return result;
