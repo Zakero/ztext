@@ -1,0 +1,64 @@
+{{document
+	( title = ZText
+	, date  = {{date}}
+	)
+}}
+
+{{section( title = Intro )
+	{{bold ZText}} is a combination of hyper-text and a scripting language.
+	Everything is {{bold ZText}} is treated as text, there are no numerical values.
+	So even if 123 looks like a number, to {{bold ZText}} is still plain text.
+	As a scripting language, {{bold ZText}} supports variables and functions, call "commands".
+	These scripting features can then be used to create a hyper-text style document or a dynamic text generator.
+}}
+
+{{section ( title = Syntax )
+	The {{bold ZText}} syntax has two main components, text and tokens.
+	{{italic Text}} is anything that is not a {{italic token}}.
+	So what is a {{italic token}}?
+	A {{italic token}} is anything that appears between the {{code \{{}} and {{code \}}}} character sets.
+
+	{{section ( title = Variables , id = syntax_variables )
+		Variables are set as follows {{var$ = text}} where var is the name of the variable and text is the value of the variable.
+		The first time a variable is encountered, that variable will automatically be defined.
+		To use a text variable, the syntax is {{var$}}.
+	}}
+
+	{{section ( title = Arrays , id = syntax_arrays )
+		Variables can hold more than one value.
+		An array variable will store data as a list of values.
+		To define an array use the following syntax {{var$ = [aaa,bbb]}} where var is the name of the variable and aaa and bbb are the text values.
+		To use an array variable, the index of the value needs to be provided.
+		For example {{var$1}} would be bbb from the previous definition.
+	}}
+
+	{{section ( title = Maps , id = syntax_maps )
+		Variables can also store data as key/value pairs, call maps.
+		To define a map use the following syntax {{var$ = (foo=111,bar=222)}} where var is the name of the variable and foo=111 and bar=222 are the key/value pairs.
+		To use a map variable, the key will need to be specified.
+		For example: {{var$foo}} would be 111 from the previous definition.
+	}}
+
+	{{section ( title = Commands , id = syntax_commands )
+		{{bold ZText}} does not provide any build-in commands.
+		All commands must be provided to the {{bold ZText}} interpreter.
+		The syntax of a command is as follows: {{cmd(param_1=abc,param_2=def)text}}.
+		The name of the command is cmd.
+		Parameters are provided to the command as a map.
+		The contents of the command is the text.
+	}}
+
+	{{section ( title = Technical , id = syntax_technical )
+		The complete break-down of the token syntax for variables is: {{<NAME>$[=<VALUE>]}}
+		All variables must have a name followed by a $.
+		Variable names are limited to alphanumeric values: a-z, A-Z, 0-9, plus - and _.
+		The variable name must begin immediately after the {{ with no white-space in-between.
+		While white-space can be used between the variable name and the $, it is recommended to have the $ follow immediately after the variable name.
+		The =<VALUE> is optional and if present, will set the value of the variable.
+		White-space can be used between the $ and = as well as between the = and <VALUE>.
+		The value begins with the first non-white-space character and ends with the non-white-space character closest to the }}.
+		If the first non-white-space character after the = is [ then the variable will be treated as an array.
+		If the first non-white-space character after the = is a ( then the variable will be treated as a map.
+	}}
+
+}}
