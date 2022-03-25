@@ -1,0 +1,820 @@
+#!/bin/bash
+###############################################################################
+# Create C++ source and header files pre-populated with a code template.
+###############################################################################
+# 
+# Exit Error Codes:
+# 
+# The exit error codes are based on the /usr/include/sysexits.h for all
+# non-zero errors.  An exit code of '0' is success.
+#
+###############################################################################
+#
+# Bugs:
+# - Nothing to admit
+# - None yet, working on it
+#
+###############################################################################
+#
+# Todo:
+# - Add Todo items
+#
+###############################################################################
+
+###############################################################################
+# Variables: Read-Only
+
+########################################
+# Error Codes
+readonly Error_Data=65        # EX_DATAERR
+readonly Error_NoInput=66     # EX_NOINPUT
+readonly Error_NoPerm=77      # EX_NOPERM
+readonly Error_TempFail=75    # EX_TEMPFAIL
+readonly Error_Unavailable=69 # EX_UNAVAILABLE
+readonly Error_Usage=64       # EX_USAGE
+
+########################################
+# Grep Exit Codes
+readonly Grep_Found_Match=0
+readonly Grep_No_Match=1
+readonly Grep_Error=2
+
+########################################
+# Page Viewer
+if [ -n "`command -v less 2> /dev/null`" ]
+then
+	readonly page_viewer="less --no-init --quit-if-one-screen"
+elif [ -n "`command -v more 2> /dev/null`" ]
+then
+	readonly page_viewer="more"
+else
+	readonly page_viewer=""
+fi
+
+########################################
+# Project Values
+cd `dirname $0`/..
+readonly project_dir=`pwd`
+cd - &> /dev/null
+
+readonly header_private_extension="hprivate"
+readonly license_list="BSD CSL GPL AGPL LGPL MPL"
+readonly program_name=`basename $0`
+readonly year=`date +%Y`
+
+
+###############################################################################
+# Variables: Internal
+
+
+###############################################################################
+# Variables: Arg Configurable
+
+author="Andrew Moore"
+class_dir=""
+class_name=""
+debug_mode=""
+editor=""
+file_path="$project_dir"
+file_header=""
+file_source=""
+gvim=""
+license="MPL"
+namespace_list=""
+header_extension="h"
+project_title="Z-Text: The Hyper-Script Language"
+vim_server=""
+
+
+###############################################################################
+main()
+{
+	# Remove the ".h", ".cpp", replace all "." and ":" with "/"
+	object_path=`echo $object | sed 's|\.h$||' | sed 's|\.cpp||' | sed 's|[\.:]|/|g' | sed 's|//|/|g'`
+	path=`dirname $object_path`
+	if [ "$path" != "." ]
+	then
+		class_dir=`echo "$path" | sed 's|//|/|g'`
+		file_path=`echo "$file_path/$path" | sed 's|//|/|g'`
+		namespace_list=`echo "$namespace_list $path" | sed 's|/| |g' | sed 's|^ *\(.*\) *$|\1|'`
+	fi
+
+	class_name=`basename $object_path`
+	file_source=`echo "$file_path/$class_name.cpp"`
+	file_header=`echo "$file_path/$class_name.$header_extension"`
+
+	if [ -n "$debug_mode" ]
+	then
+		echo "--- Internally Defined Values ---"
+		echo "  license_list: \"$license_list\""
+		echo "   page_viewer: \"$page_viewer\""
+		echo "  program_name: \"$program_name\""
+		echo "   project_dir: \"$project_dir\""
+		echo "          year: \"$year\""
+		echo ""
+		echo "--- Argument Based Values ---"
+		echo "        author: \"$author\""
+		echo "     class_dir: \"$class_dir\""
+		echo "    class_name: \"$class_name\""
+		echo "        editor: \"$editor\""
+		echo "     file_path: \"$file_path\""
+		echo "   file_header: \"$file_header\""
+		echo "   file_source: \"$file_source\""
+		echo "          gvim: \"$gvim\""
+		echo "       license: \"$license\""
+		echo "namespace_list: \"$namespace_list\""
+		echo "   object_path: \"$object_path\""
+		echo " project_title: \"$project_title\""
+		echo "    vim_server: \"$vim_server\""
+		exit $Error_TempFail
+	fi
+
+	if [ -f "$file_source" ]
+	then
+		echo "Class $class_name already exists: $file_source"
+		exit $Error_Unavailable
+	fi
+
+	if [ -f "$file_header" ]
+	then
+		echo "Class $class_name already exists: $file_header"
+		exit $Error_Unavailable
+	fi
+
+	if [ ! -d "$file_path" ]
+	then
+		mkdir -p "$file_path"
+	fi
+
+	write_header > $file_header
+	write_source > $file_source
+
+	if [ -n "$vim_server" ]
+	then
+		source_="${file_source#$project_dir/}"
+		vim --servername $vim_server --remote-send "<ESC><C-w>:sp $source_<CR>"
+		header_="${file_header#$project_dir/}"
+		vim --servername $vim_server --remote-send "<ESC><C-w>:sp $header_<CR>"
+	elif [ -n "$gvim" ]
+	then
+		$gvim $file_header
+		$gvim $file_source
+	elif [ -n "$editor" ]
+	then
+		$editor $file_header $file_source
+	fi
+}
+
+
+###############################################################################
+write_header()
+{
+if [ -n "$license" ]
+then
+	write_license_$license
+fi
+
+cat << FILE_HEADER
+
+/**
+ * \file
+ */
+
+FILE_HEADER
+
+if [ -n "$namespace_list" ]
+then
+	header_guard=`(echo "$namespace_list $class_name $header_extension" | sed 's/ /_/g')`
+else
+	header_guard=`(echo "$class_name $header_extension" | sed 's/ /_/g')`
+fi
+
+cat << FILE_HEADER
+#ifndef ${header_guard}
+#define ${header_guard}
+
+/******************************************************************************
+ * Defines
+ */
+
+
+/******************************************************************************
+ * Includes
+ */
+
+// C++
+
+// ANSI/POSIX
+
+// $project_title
+
+
+/******************************************************************************
+ * Namespaces
+ */
+
+
+/******************************************************************************
+ * Forward Declarations
+ */
+
+
+/******************************************************************************
+ * Typedefs / Usings
+ */
+
+
+/******************************************************************************
+ * Structures
+ */
+
+
+/******************************************************************************
+ * Classes
+ */
+
+`
+	for namespace in $namespace_list
+	do
+		echo "namespace $namespace"
+		echo "{"
+	done
+`
+class $class_name
+{
+	public:
+		explicit $class_name();
+		virtual ~$class_name();
+
+	protected:
+
+	private:
+		$class_name(const $class_name&) = delete;
+		$class_name& operator=(const $class_name&) = delete;
+
+		$class_name($class_name&&) = delete;
+		$class_name& operator=($class_name&&) = delete;
+};
+`
+	for namespace in $namespace_list
+	do
+		echo "}"
+	done
+`
+
+#endif // ${header_guard}
+FILE_HEADER
+}
+
+
+###############################################################################
+write_source()
+{
+if [ -n "$license" ]
+then
+	write_license_$license
+fi
+
+cat << FILE_SOURCE
+
+/**
+ * \file
+ */
+
+FILE_SOURCE
+
+namespace_closure=
+for namespace in $namespace_list
+do
+	ns="$ns$namespace"
+	namespace_closure=";;} // $ns$namespace_closure"
+	ns="$ns::"
+done
+
+if [ -n "$class_dir" ]
+then
+	echo "#include \"$class_dir/$class_name.$header_extension\""
+else
+	echo "#include \"$class_name.$header_extension\""
+fi
+
+cat << FILE_SOURCE
+
+/******************************************************************************
+ * Defines
+ */
+
+
+/******************************************************************************
+ * Includes
+ */
+
+// C++
+
+// ANSI/POSIX
+
+// $project_title
+
+
+/******************************************************************************
+ * Namespaces
+ */`
+	if [ -n "$namespace_list" ]
+	then
+		echo
+		echo
+	fi
+
+	using_namespace=
+	for namespace in $namespace_list
+	do
+		echo "namespace $namespace"
+		echo "{"
+	done
+`
+
+
+/******************************************************************************
+ * Namespace: Private
+ */
+
+namespace
+{
+}
+
+
+/******************************************************************************
+ * Class: $class_name
+ */
+
+/**
+ * `
+	class=""
+	for namespace in  $namespace_list
+	do
+		class="$class$namespace::"
+	done
+
+	echo "\\class $class$class_name"
+`
+ * 
+ * \brief Brief.`
+	if [ -z "$license" -a -n "$author" ]
+	then
+		echo
+		echo " * ";
+		echo " * \author $author"
+	fi`
+ * 
+ * Description
+ */
+
+
+/******************************************************************************
+ * Class Variables: $class_name
+ */
+
+
+/******************************************************************************
+ * Class Methods: $class_name
+ */
+
+/**
+ * \brief Constructor.
+ * 
+ * Create a new instance of $class_name.
+ */
+$class_name::$class_name()
+{
+}
+
+
+/**
+ * \brief Destructor.
+ * 
+ * Release all resources used by $class_name.
+ */
+$class_name::~$class_name()
+{
+}
+
+
+/**
+ * \fn $class_name::$class_name(const $class_name&)
+ *
+ * \brief Disable Copy Constructor.
+ */
+
+
+/**
+ * \fn $class_name& $class_name::operator=(const $class_name&)
+ *
+ * \brief Disable Copy Constructor.
+ *
+ * \return A copy.
+ */
+
+
+/**
+ * \fn $class_name::$class_name($class_name&&)
+ *
+ * \brief Disable Move Constructor.
+ */
+
+
+/**
+ * \fn $class_name& $class_name::operator=($class_name&&)
+ *
+ * \brief Disable Move Constructor.
+ *
+ * \return A copy.
+ */
+`
+echo $namespace_closure | sed 's/;;/\n/g'
+`
+FILE_SOURCE
+}
+
+
+###############################################################################
+write_license_bsd()
+{
+cat << LICENSE
+/******************************************************************************
+ * Copyright (c) $year, $author
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without 
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation 
+ *    and/or other materials provided with the distribution. 
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ * POSSIBILITY OF SUCH DAMAGE.
+ * 
+ * The views and conclusions contained in the software and documentation are 
+ * those of the authors and should not be interpreted as representing official 
+ * policies, either expressed or implied, of the FreeBSD Project.
+ */
+LICENSE
+}
+
+
+###############################################################################
+write_license_csl()
+{
+cat << LICENSE
+/******************************************************************************
+ * Copyright (c) $year, "$project_title Maintainers"
+ * 
+ * This file is part of $project_title.
+ *
+ * $project_title can not be copied and/or distributed without the express
+ * permission of the "$project_title Maintainers".
+ *
+ * The "$project_title Maintainers" are:
+ * - $author
+ */
+LICENSE
+}
+
+
+###############################################################################
+write_license_gpl()
+{
+cat << LICENSE
+/******************************************************************************
+`write_line_wrap "Copyright $year $author"`
+ * 
+`write_line_wrap "This file is part of $project_title."`
+ * 
+`write_line_wrap "$project_title is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version."`
+ * 
+`write_line_wrap "$project_title is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details."`
+ * 
+`write_line_wrap "You should have received a copy of the GNU General Public License along with $project_title.  If not, see <http://www.gnu.org/licenses/>."`
+ */
+LICENSE
+}
+
+
+###############################################################################
+write_license_agpl()
+{
+cat << LICENSE
+/******************************************************************************
+`write_line_wrap "Copyright $year $author"`
+ * 
+`write_line_wrap "This file is part of $project_title".`
+ * 
+`write_line_wrap "$project_title is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version."`
+ * 
+`write_line_wrap "$project_title is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details."`
+ * 
+`write_line_wrap "You should have received a copy of the GNU Affero General Public License along with $project_title.  If not, see <http://www.gnu.org/licenses/>."`
+ */
+LICENSE
+}
+
+
+###############################################################################
+write_license_lgpl()
+{
+cat << LICENSE
+/******************************************************************************
+`write_line_wrap "Copyright $year $author"`
+ * 
+`write_line_wrap "This file is part of $project_title".`
+ * 
+`write_line_wrap "$project_title is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version."`
+ * 
+`write_line_wrap "$project_title is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details."`
+ * 
+`write_line_wrap "You should have received a copy of the GNU Lesser General Public License along with $project_title.  If not, see <http://www.gnu.org/licenses/>."`
+ */
+LICENSE
+}
+
+
+###############################################################################
+write_license_mpl()
+{
+cat << LICENSE
+/******************************************************************************
+ * Copyright (c) $year, $author
+ * 
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+LICENSE
+}
+
+
+###############################################################################
+write_line_wrap()
+{
+	max_len=76
+	text=$1
+
+	while true
+	do
+		len=`echo $text | wc -c`
+
+		if (( len < max_len ))
+		then
+			line=`echo $text | cut -c-$max_len`
+		else
+			line=`echo $text | cut -c-$max_len | sed "s|\(.* \).*|\1|"`
+		fi
+
+		len=`echo $line | wc -c`
+		echo " * $line"
+
+		text=`echo $text | cut -c$len-`
+		if [ -z "$text" ]
+		then
+			break
+		fi
+	done
+}
+
+
+###############################################################################
+show_usage()
+{
+	if [ -n "$page_viewer" ]
+	then
+		usage | $page_viewer
+	else
+		usage
+	fi
+}
+
+
+###############################################################################
+usage()
+{
+	gvim=`command -v gvim`
+
+	cat <<- USAGE_END
+	Usage: $program_name [Options] [namespace[namespace]]class
+	
+	Options:
+	  -A, --author
+	    Set the author of the files.`
+	if [ -n "$author" ]
+	then
+		echo
+		echo "    Current default: \"$author\""
+	fi`
+	    Example: $program_name --author "John Doe" foo::Bar
+
+	  --debug
+	    Display the internal values that would be used to create the
+	    requested class then exit.
+
+	  -d, --dir
+	    Set the "top-level" directory.  The new files will be placed
+	    relative to this path [$file_path].
+
+	  --edit [command]
+	    Open the created files using an editor.  If no "command" is given
+	    then "$EDITOR" will be used.
+	    The command used will be: $EDITOR file.h file.cpp
+
+`if [ -n "$gvim" ]
+then
+	cat <<- GVIM
+	  --gvim
+	    Open the created files using gvim [$gvim].
+	    The command used will be: $gvim file.h; $gvim file.cpp
+	GVIM
+fi`
+
+	  -h, --help
+	    Show this message and exit.
+
+	  -l, --license
+	    Places the specified license preamble at the top of the files.
+	    Supported licenses: $license_list`
+		if [ -n "$license" ]
+		then
+			echo
+			echo "    Current default: \"$license\""
+		fi`
+	    Example: $program_name --license BSD ns::Object
+
+	  -n, --namespace
+	    Additional namespaces to prefix.  These namespaces are not used to
+	    create directories or used for the file location.`
+		if [ -n "$namespace_list" ]
+		then
+			echo
+			echo "    Current default: \"$namespace_list\""
+		fi`
+	    Example: $program_name --namespace foo notta::Thing
+
+	  -p, --private
+	    The header file will be marked as private by using the ".hprivate"
+	    extension.  This is only a convention and not a language feature.
+
+	  -r, --vim-remote SERVER_NAME
+	    Sends the created files to the remote VIM server. The SERVER_NAME
+	    is not case-sensitive. the VIM server is expected to be running
+	    from the project's root directory [$project_dir].
+
+	  -T, --title
+	    Sets the project title that the source code belongs to.  This title
+	    is used in the generated source code as well as inserted into the
+	    selected license (--license).  Use quotes if the title contains
+	    spaces.
+	    Current Default: "${project_title}"
+	    Example: $program_name --license GPL --title "App Of Awesome" klassy::McKlass
+
+	Arguments:
+	  namespace
+	    The namespace where the class belongs.  The namespace separator can
+	    be a forward-slash '/', a period '.', or double colons '::', and
+	    must appear directly after each namespace.  No spaces are allowed.
+	    (Multiple namespaces are supported.)  The namespaces are also used
+	    to determine where to place the created files.  For example:
+	    "foo::bar::Class" would place the "Class.h" and "Class.cpp" files
+	    in the "./foo/bar" directory.  If the directories do not exist,
+	    they will be created.
+
+	  class
+	    The class name.
+
+	USAGE_END
+}
+
+
+###############################################################################
+# Parse the args
+while [ "$1" != "" ]
+do
+	case $1 in
+		-A|--author)
+			shift
+			author="$1"
+			;;
+		--debug)
+			debug_mode="yes"
+			;;
+		-d|--dir)
+			shift
+			file_path="$1"
+			;;
+		--edit)
+			if (( $# <= 2 )) || [[ $2 == "-*" ]]
+			then
+				editor="$EDITOR"
+			else
+				shift
+				editor="$1"
+			fi
+			;;
+		--gvim)
+			gvim=`command -v gvim`
+			;;
+		-h|--help)
+			show_usage
+			exit 0
+			;;
+		-l|--license)
+			shift
+			license="$1"
+			;;
+		-n|--namespace)
+			shift
+			namespace_list="$namespace_list $1"
+			;;
+		-p|--private)
+			header_extension="$header_private_extension"
+			;;
+		-r|--vim-remote)
+			shift
+			vim_server="$1"
+			;;
+		-T|--title)
+			shift
+			project_title="$1"
+			;;
+		-*)
+			echo "Error: Option \"$1\" is not supported."
+			echo "Use \"-h\" for help:"
+			echo "  $program_name -h"
+			exit $Error_Usage
+			;;
+		*)
+			object=$1
+	esac
+	shift
+done
+
+###############################################################################
+# Make sure that all required information is present
+if [ "$object" == "" ]
+then
+	echo "Error: No class name was provided."
+	echo "Use \"-h\" for help:"
+	echo "	$program_name -h"
+	exit $Error_Usage
+fi
+
+if [ -n "$license" ]
+then
+	echo $license_list | grep -i "\<$license\>" &> /dev/null
+	if (( $? == $Grep_No_Match ))
+	then
+		echo "Error: The \"$license\" license is not supported."
+		echo "Available License: $license_list"
+		exit $Error_Usage
+	else
+		license=`echo $license | tr [:upper:] [:lower:]`
+	fi
+fi
+
+namespace_list=`echo $namespace_list | sed 's/[\.:]\+/ /g'`
+
+if [ -n "$vim_server" ]
+then
+	if [ -z "`command -v vim 2> /dev/null`" ]
+	then
+		echo "Error: The command \"vim\" is not available."
+		exit $Error_Unavailable
+	fi
+
+	vim -h | grep -- --servername &> /dev/null
+	if [ "$?" -eq "$Grep_No_Match" ]
+	then
+		echo "Error: \"vim\" does not support \"server mode\"."
+		exit $Error_Unavailable
+	fi
+
+	vim --serverlist | grep -i -- "$vim_server" &> /dev/null
+	if [ "$?" -eq "$Grep_No_Match" ]
+	then
+		echo "Error: vim server \"$vim_server\" was not found."
+		exit $Error_Unavailable
+	fi
+fi
+
+###############################################################################
+# Everything is now ready
+main
+exit 0

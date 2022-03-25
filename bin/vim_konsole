@@ -1,0 +1,31 @@
+#!/bin/bash
+###############################################################################
+# How To Use:
+# 
+# 1 - Start a KDE Konsole
+# 2 - Create a new Profile
+#     2.1 - Ctrl+Shift+M to toggle the menu if needed
+#     2.2 - From the menu: "Settings -> Manage Profiles..."
+#     2.3 - Click on the "+ New..." button
+#     2.4 - Set the Profile name to "VIM"
+#     2.5 - Adjust the configuration to you prefernce
+#           - Recommend setting "Scrolling -> Scrollback" to "None"
+# 3 - Run this script
+# 
+###############################################################################
+# Why Use It...
+# 
+# When starting a new vim instance, some common actions include:
+# - Split the window to view multiple buffers
+# - Load project specific editor settings
+#
+# This script does all of that for you.
+# 
+# Plus, the vim instance will be given a server name (See $name) to allow for
+# remote interaction.
+# 
+###############################################################################
+
+name="ztext"
+konsole --separate --profile VIM -e vim --servername $name -c 'set exrc | vsplit | vsplit' &>/dev/null &
+

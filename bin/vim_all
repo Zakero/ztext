@@ -1,0 +1,18 @@
+#!/bin/bash
+
+servername=ztext
+vim="vim -n --servername $servername"
+vim_server=$(vim --serverlist | grep -i $servername)
+if [ -z "$vim_server" ]
+then
+	echo "Error: vim server \"$servername\" is not running. Start vim with the following command:"
+	echo "	$vim"
+	exit
+fi
+
+vim="$vim --remote "
+
+find .   -type f -name "CMakeLists.txt"                             | xargs -n 1 $vim
+find src -type f -name "*.cpp" -o -name "*.h" -o -name "*.hprivate" | xargs -n 1 $vim
+
+exit
