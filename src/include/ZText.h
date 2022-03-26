@@ -812,6 +812,17 @@ namespace ztext
 
 		SUBCASE("Escaped Token")
 		{
+			std::string text = "\\{{token\\}}";
+
+			error = ztext::parse(zt, text);
+			CHECK(error == Error_None);
+			
+			ztext::Element* element = ztext::element_next(root);
+			CHECK(ztext::element_eval(element) == "{{token}}");
+		}
+
+		SUBCASE("Embedded Escaped Token")
+		{
 			std::string text = "foo \\{{token\\}} bar";
 
 			error = ztext::parse(zt, text);
@@ -820,6 +831,97 @@ namespace ztext
 			ztext::Element* element = ztext::element_next(root);
 			CHECK(ztext::element_eval(element) == "foo {{token}} bar");
 		}
+
+		destroy(zt);
+	}
+	#endif // }}}
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/variable
+	TEST_CASE("parse/variable")
+	{
+		ztext::ZText*   zt    = create();
+		//ztext::Element* root  = ztext::root_element(zt);
+		std::error_code error = {};
+
+		SUBCASE("Invaild Data")
+		{
+			error = ztext::parse(zt, "{{var$");
+			CHECK(error == Error_Invalid_Parameter);
+
+			// -------------------------------------- //
+
+			error = ztext::parse(zt, "{{var$\\}}");
+			CHECK(error == Error_Invalid_Parameter);
+		}
+
+#if 0
+		SUBCASE("Variable")
+		{
+			error = ztext::parse(zt, "{{var$}}");
+			CHECK(error == Error_None);
+
+			ztext::Element* element = ztext::element_next(root);
+
+			CHECK(element       != nullptr);
+			CHECK(element->type == ztext::Type::Variable);
+			CHECK(element->text == "var");
+			CHECK(ztext::element_eval(element) == "");
+		}
+
+		SUBCASE("Variable With White-Space")
+		{
+			error = ztext::parse(zt, " {{ var $ }} ");
+			CHECK(error == Error_None);
+
+			ztext::Element* element = ztext::element_next(root);
+
+			CHECK(element       != nullptr);
+			CHECK(element->type == ztext::Type::Variable);
+			CHECK(element->text == "var");
+			CHECK(ztext::element_eval(element) == "");
+		}
+
+		SUBCASE("Variable With Data")
+		{
+			error = ztext::parse(zt, "{{var$=foo}}");
+			CHECK(error == Error_None);
+
+			ztext::Element* element = ztext::element_next(root);
+
+			CHECK(element       != nullptr);
+			CHECK(element->type == ztext::Type::Variable);
+			CHECK(element->text == "var");
+			CHECK(ztext::element_eval(element) == "foo");
+		}
+
+		SUBCASE("Variable With Data and White-Space")
+		{
+			error = ztext::parse(zt, " {{ var $ = foo }} ");
+			CHECK(error == Error_None);
+
+			ztext::Element* element = ztext::element_next(root);
+
+			CHECK(element       != nullptr);
+			CHECK(element->type == ztext::Type::Variable);
+			CHECK(element->text == "var");
+			CHECK(ztext::element_eval(element) == "foo");
+		}
+
+		SUBCASE("Variable With Cleaned Data")
+		{
+			error = ztext::parse(zt, " {{ var$ = \
+				foo	\
+				bar	\
+				}} ");
+			CHECK(error == Error_None);
+
+			ztext::Element* element = ztext::element_next(root);
+
+			CHECK(element       != nullptr);
+			CHECK(element->type == ztext::Type::Variable);
+			CHECK(element->text == "var");
+			CHECK(ztext::element_eval(element) == "foo bar");
+		}
+#endif
 
 		destroy(zt);
 	}
