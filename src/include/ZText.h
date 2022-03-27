@@ -265,7 +265,7 @@ namespace ztext
 	{
 		ztext::Element* element = new ztext::Element;
 		element->ztext = ztext;
-		element->type     = type;
+		element->type  = type;
 
 		return element;
 	}
@@ -364,7 +364,7 @@ namespace ztext
 	}
 
 
-	size_t string_skip_whitespace_(std::string string
+	size_t string_skip_whitespace_(const std::string& string
 		, size_t index
 		) noexcept
 	{
@@ -382,7 +382,7 @@ namespace ztext
 	}
 
 
-	bool validate_token_name_character_(unsigned char c
+	bool validate_token_name_character_(const unsigned char c
 		) noexcept
 	{
 		if(std::isalnum(c) != 0
@@ -722,12 +722,52 @@ printf("--- 3.6 --- '%s'\n", text.c_str());
 		if(string[index] == '$')
 		{
 			token.identifier = index;
-debug_token_(string, token);
 
 			return Error_None;
 		}
 
 		return Error_Parser_Invalid_Token_Identifier;
+	}
+
+	
+	std::error_code parse_token_variable_(ZText* ztext
+		, const std::string& string
+		, Token&             token
+		, Element*&          element
+		) noexcept
+	{
+printf("--- %s ---\n", __FUNCTION__);
+debug_token_(string, token);
+		size_t index = 0;
+
+		const std::string name = string.substr(token.name_begin, token.name_end - token.name_begin + 1);
+
+		// Is variable being set?
+		index = token.identifier + 1;
+		index = string_skip_whitespace_(string, index);
+
+		std::string value = "";
+		Element* content = nullptr;
+		if(string[index] == '=')
+		{
+			index = string_skip_whitespace_(string, index + 1);
+			content = element_create_(ztext, Type::Text);
+			content->text = string.substr(index, token.end - index - 1);
+			content->text = string_trim_(content->text);
+			content->text = string_clean_whitespace_(content->text);
+			//content->text = string_clean_escapes_(content->text);
+
+printf("content:\n");
+debug_element(content);
+		}
+
+		element = element_create_(ztext, Type::Variable);
+		element->text  = name;
+		element->child = content;
+printf("element:\n");
+debug_element(element);
+
+		return Error_None;
 	}
 
 
@@ -745,6 +785,7 @@ debug_token_(string, token);
 		index_begin += 2;
 		index_end = index_begin;
 
+		// BUG - This will not work with nested tokens
 		while(index_end < string.size())
 		{
 			if(string[index_end] == '}'
@@ -780,9 +821,10 @@ printf("--- 4.0 ---\n");
 			return error;
 		}
 
+printf("--- 5.0 ---\n");
 		if(string[token.identifier] == '$')
 		{
-			//element = parse_token_variable_(ztext, string, token);
+			error = parse_token_variable_(ztext, string, token, element);
 		}
 
 		return Error_None;
@@ -842,6 +884,7 @@ printf("--- 4 --- %p\n", (void*)element);
 
 			element_append_(tail, element);
 			tail = element;
+			element = nullptr;
 			index_begin = string_skip_whitespace_(string, index_end);
 		}
 
@@ -998,7 +1041,7 @@ printf("--- 4 --- %p\n", (void*)element);
 
 		SUBCASE("Before Token")
 		{
-			std::string text = "foo {{token}}";
+			std::string text = "foo {{token$}}";
 
 			error = ztext::parse(zt, text);
 			CHECK(error == Error_None);
@@ -1037,11 +1080,17 @@ printf("--- 4 --- %p\n", (void*)element);
 	TEST_CASE("parse/variable")
 	{
 		ztext::ZText*   zt    = create();
+#if 0
 		ztext::Element* root  = ztext::root_element(zt);
 		std::error_code error = {};
 
 		SUBCASE("Invaild Data")
 		{
+			error = ztext::parse(zt, "{{");
+			CHECK(error == Error_Parser_Token_End_Marker_Missing);
+
+			// -------------------------------------- //
+
 			error = ztext::parse(zt, "{{var$");
 			CHECK(error == Error_Parser_Token_End_Marker_Missing);
 
@@ -1079,7 +1128,6 @@ printf("--- 4 --- %p\n", (void*)element);
 			CHECK(ztext::element_eval(element) == "");
 		}
 
-#if 0
 		SUBCASE("Variable With White-Space")
 		{
 			error = ztext::parse(zt, " {{ var $ }} ");
@@ -1134,7 +1182,15 @@ printf("--- 4 --- %p\n", (void*)element);
 			CHECK(element->text == "var");
 			CHECK(ztext::element_eval(element) == "foo bar");
 		}
+
 #endif
+		SUBCASE("Variable With Nested Variables")
+		{
+		}
+
+		SUBCASE("Variable With Nested Variables Recursive")
+		{
+		}
 
 		destroy(zt);
 	}
@@ -1142,6 +1198,30 @@ printf("--- 4 --- %p\n", (void*)element);
 
 	// }}}
 	// {{{ Element
+
+	std::string element_eval_variable_(Element* element
+		) noexcept
+	{
+printf("--- %s ---\n", __FUNCTION__);
+//debug_token_(string, token);
+debug_element(element);
+
+		if(element->ztext->variable.contains(element->text) == false)
+		{
+			element->ztext->variable[element->text] = "";
+		}
+
+		if(element->child != nullptr)
+		{
+			std::string value = element_eval(element->child);
+			element->ztext->variable[element->text] = value;
+		}
+
+		std::string string = element->ztext->variable[element->text];
+
+		return string;
+	}
+
 
 	std::string element_eval(Element* element
 		) noexcept
@@ -1157,7 +1237,7 @@ printf("--- 4 --- %p\n", (void*)element);
 		{
 			case Type::Root:     return {};
 			case Type::Text:     return element->text;
-			case Type::Variable: ZTEXT_ERROR << "Not Implemented\n"; break;//return eval_variable(element);
+			case Type::Variable: return element_eval_variable_(element);
 			case Type::Command:  ZTEXT_ERROR << "Not Implemented\n"; break;//return eval_command(element);
 		}
 
@@ -1259,95 +1339,6 @@ printf("--- 4 --- %p\n", (void*)element);
 		if(string[index] == '(')
 		{
 		}
-
-		return element;
-	}
-
-
-	Element* parse_variable_(ZText* ztext
-		, const std::string& string
-		, size_t&            index
-		) noexcept
-	{
-		std::string name = {};
-
-		size_t start = index + 3;
-		while(index < string.size())
-		{
-			if(isspace(string[index]))
-			{
-				name = string.substr(start, index - start);
-				break;
-			}
-
-			if(string[index] == '}')
-			{
-				if((index + 1) < string.size()
-					&& string[index - 1] != '\\'
-					&& string[index + 1] == '}'
-					)
-				{
-					name = string.substr(start, index - start);
-					break;
-				}
-			}
-
-			index++;
-		}
-
-		if(name.empty() == true)
-		{
-			// Error
-
-			return nullptr;
-		}
-
-		Element* element = element_create_(ztext
-			, Type::Variable
-			);
-		element->text = name;
-
-		if(string[index] == '}')
-		{
-			index += 2;
-			return element;
-		}
-
-		while(isspace(string[index]))
-		{
-			index++;
-		}
-
-		start = index;
-		std::string value = {};
-
-		while(index < string.size())
-		{
-			if(string[index] == '}')
-			{
-				if((index + 1) < string.size()
-					&& string[index - 1] != '\\'
-					&& string[index + 1] == '}'
-					)
-				{
-					value = string.substr(start, index - start);
-					break;
-				}
-			}
-
-			index++;
-		}
-
-		if(value.empty())
-		{
-			// error
-			delete element;
-			element = nullptr;
-
-			return nullptr;
-		}
-
-		variable_set(ztext, name, value);
 
 		return element;
 	}
