@@ -382,12 +382,17 @@ TEST_CASE("clear/command")
 	ztext::ZText* zt = ztext::create();
 	ztext::command_set(zt, "cmd", [](ztext::ZText*, ztext::Element*){return std::string();});
 
+	ztext::Element* element = ztext::element_text_create("text");
+	ztext::element_append(zt, nullptr, element);
+
 	CHECK(zt                          != nullptr);
 	CHECK(zt->command.contains("cmd") == true);
+	CHECK(zt->root                    == element);
 
-	clear(zt);
+	ztext::clear_commands(zt);
 
 	CHECK(zt->command.contains("cmd") == false);
+	CHECK(zt->root                    == element);
 
 	destroy(zt);
 }
@@ -415,17 +420,19 @@ void ztext::clear_elements(ztext::ZText* ztext
 TEST_CASE("clear/element")
 {
 	ztext::ZText*   zt      = ztext::create();
-	ztext::Element* element = ztext::element_text_create("text");
+	ztext::command_set(zt, "cmd", [](ztext::ZText*, ztext::Element*){return std::string();});
 
+	ztext::Element* element = ztext::element_text_create("text");
 	ztext::element_append(zt, nullptr, element);
 
 	CHECK(zt       != nullptr);
 	CHECK(element  != nullptr);
 	CHECK(zt->root == element);
 
-	clear(zt);
+	clear_elements(zt);
 
-	CHECK(zt->root == nullptr);
+	CHECK(zt->command.contains("cmd") == true);
+	CHECK(zt->root                    == nullptr);
 
 	destroy(zt);
 }
@@ -449,12 +456,17 @@ TEST_CASE("clear/variable")
 	ztext::ZText* zt = ztext::create();
 	ztext::variable_set(zt, "foo", "bar");
 
+	ztext::Element* element = ztext::element_text_create("text");
+	ztext::element_append(zt, nullptr, element);
+
 	CHECK(zt                           != nullptr);
 	CHECK(zt->variable.contains("foo") == true);
+	CHECK(zt->root                     == element);
 
-	clear(zt);
+	clear_variables(zt);
 
 	CHECK(zt->variable.contains("foo") == false);
+	CHECK(zt->root                     == element);
 
 	destroy(zt);
 }
