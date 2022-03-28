@@ -124,6 +124,10 @@ namespace ztext
 	// --- Element: Text --- //
 	[[nodiscard]] Element*        element_text_create(const std::string&) noexcept;
 
+	// --- Debugging --- //
+	#ifdef ZTEXT_DEBUG_ENABLED
+	[[]]          void            print(const Element*, const bool = false) noexcept;
+	#endif
 
 	// --- Deprecated --- //
 	[[]]          Element*        element_append_command(Element*, const std::string) noexcept;
@@ -260,6 +264,19 @@ namespace
 		return element;
 	}
 
+	std::string to_string(const ztext::Type type
+		) noexcept
+	{
+		switch(type)
+		{
+			case ztext::Type::Root:     return "root";
+			case ztext::Type::Variable: return "variable";
+			case ztext::Type::Text:     return "text";
+			case ztext::Type::Command:  return "command";
+		}
+
+		return {};
+	}
 }
 
 // }}}
@@ -798,6 +815,28 @@ ztext::Element* ztext::element_text_create(const std::string& string
 
 // }}}
 // }}}
+// {{{ Debugging
+
+void ztext::print(const ztext::Element* element
+	, const bool to_end
+	) noexcept
+{
+	const Element* e = element;
+
+	do
+	{
+		printf("element: %p\n", (void*)e);
+		printf("\tztext: %p\n", (void*)e->ztext);
+		printf("\t next: %p\n", (void*)e->next);
+		printf("\t prev: %p\n", (void*)e->prev);
+		printf("\t type: %s\n", to_string(e->type).c_str());
+
+		e = e->next;
+	} while(e != nullptr && to_end == true);
+}
+
+// }}}
+
 
 // --- Deprecated --- //
 namespace ztext
