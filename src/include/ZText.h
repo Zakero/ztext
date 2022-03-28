@@ -101,6 +101,7 @@ namespace ztext
 	using MapStringString = std::unordered_map<std::string, std::string>;
 
 
+	// --- Utility --- //
 	[[nodiscard]] ZText*          create() noexcept;
 	[[]]          void            destroy(ZText*&) noexcept;
 	[[]]          void            clear(ZText*) noexcept;
@@ -108,9 +109,13 @@ namespace ztext
 	[[]]          void            clear_elements(ZText*) noexcept;
 	[[]]          void            clear_variables(ZText*) noexcept;
 	[[]]          std::error_code parse(ZText*, const std::string) noexcept;
-
 	[[nodiscard]] Element*        root_element(ZText*) noexcept;
 
+	// --- Element --- //
+
+
+
+	// --- Deprecated --- //
 	[[]]          Element*        element_append_command(Element*, const std::string) noexcept;
 	[[]]          Element*        element_append_text(Element*, const std::string) noexcept;
 	[[]]          Element*        element_append_variable(Element*, const std::string) noexcept;
@@ -138,10 +143,10 @@ namespace ztext
 
 #ifdef ZTEXT_IMPLEMENTATION // {{{
 
+// {{{ Error
+
 namespace ztext
 {
-	// {{{ Error
-
 	/**
 	 * \class ErrorCategary_
 	 *
@@ -195,16 +200,22 @@ namespace ztext
 	 *
 	 * This one instance will be used by all error codes.
 	 */
+	__attribute__((visibility ("hidden")))
 	ErrorCategory_ ErrorCategory;
 
-	// }}}
+}
 
+// }}}
+// {{{ Datatypes
+
+namespace ztext
+{
 	enum class Type : uint8_t
 	{	Root
 	,	Text
 	,	Variable
 	,	Command
-	} type;
+	};
 
 
 	struct Element
@@ -221,14 +232,17 @@ namespace ztext
 
 	struct ZText
 	{
-		MapStringString                                variable     = {};
-		std::unordered_map<std::string, CommandLambda> command      = {};
-		Element                                        root_element = {};
+		Element*                                       root     = nullptr;
+		MapStringString                                variable = {};
+		std::unordered_map<std::string, CommandLambda> command  = {};
 	};
+}
 
+// }}}
+// {{{ Private
 
-	// {{{ Private
-
+namespace
+{
 	ztext::Element* find_tail_(ztext::Element* element
 		) noexcept
 	{
@@ -241,11 +255,11 @@ namespace ztext
 	}
 
 
-	void element_append_(Element* element_prev
-		, Element* element
+	void element_append_(ztext::Element* element_prev
+		, ztext::Element* element
 		) noexcept
 	{
-		Element* element_next = element_prev->next;
+		ztext::Element* element_next = element_prev->next;
 
 		element->next = element_next;
 		element->prev = element_prev;
@@ -257,7 +271,60 @@ namespace ztext
 			element_next->prev = element;
 		}
 	}
+}
 
+// }}}
+// {{{ Utility
+
+namespace ztext
+{
+	// {{{ Utility: create/destroy
+
+	ZText* create() noexcept
+	{
+		ZText* ztext = new ZText;
+
+		return ztext;
+	};
+
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("create")
+	{
+		ZText* ztext = create();
+
+		CHECK(ztext != nullptr);
+
+		destroy(ztext);
+	}
+	#endif // }}}
+
+
+	void destroy(ZText*& ztext
+		) noexcept
+	{
+		clear(ztext);
+
+		delete ztext;
+		ztext = nullptr;
+	}
+
+	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+	TEST_CASE("destroy")
+	{
+		ZText* ztext = create();
+		destroy(ztext);
+
+		CHECK(ztext == nullptr);
+	}
+	#endif // }}}
+
+	// }}}
+}
+
+// }}}
+
+namespace ztext
+{
 
 	ztext::Element* element_create_(ztext::ZText* ztext
 		, ztext::Type type
@@ -396,54 +463,7 @@ namespace ztext
 		return false;
 	}
 
-	// }}}
 	// {{{ Util
-	// {{{ Util: create/destroy
-
-	ZText* create() noexcept
-	{
-		ZText* ztext = new ZText;
-
-		ztext->root_element.ztext = ztext;
-		ztext->root_element.type  = Type::Root;
-
-		return ztext;
-	};
-
-	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-	TEST_CASE("create")
-	{
-		ZText* ztext = create();
-
-		CHECK(ztext                     != nullptr);
-		CHECK(ztext->root_element.ztext == ztext);
-		CHECK(ztext->root_element.type  == Type::Root);
-
-		destroy(ztext);
-	}
-	#endif // }}}
-
-
-	void destroy(ZText*& ztext
-		) noexcept
-	{
-		clear(ztext);
-
-		delete ztext;
-		ztext = nullptr;
-	}
-
-	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-	TEST_CASE("destroy")
-	{
-		ZText* ztext = create();
-		destroy(ztext);
-
-		CHECK(ztext == nullptr);
-	}
-	#endif // }}}
-
-	// }}}
 	// {{{ Util: clear
 
 	void clear(ZText* ztext
@@ -470,14 +490,14 @@ namespace ztext
 
 		CHECK(ztext                           != nullptr);
 		CHECK(element                         != nullptr);
-		CHECK(ztext->root_element.next        == element);
+		CHECK(ztext->root->next        == element);
 		CHECK(ztext->variable.contains("foo") == true);
 		CHECK(ztext->command.contains("cmd")  == true);
 
 		clear(ztext);
 
 		CHECK(ztext                           != nullptr);
-		CHECK(ztext->root_element.next        == nullptr);
+		CHECK(ztext->root->next        == nullptr);
 		CHECK(ztext->variable.contains("foo") == false);
 		CHECK(ztext->command.contains("cmd")  == false);
 
@@ -523,7 +543,7 @@ namespace ztext
 			// Error
 		}
 
-		Element* element = ztext->root_element.next;
+		Element* element = ztext->root->next;
 		while(element != nullptr)
 		{
 			element = element_destroy(element);
@@ -539,11 +559,11 @@ namespace ztext
 
 		CHECK(ztext                    != nullptr);
 		CHECK(element                  != nullptr);
-		CHECK(ztext->root_element.next == element);
+		CHECK(ztext->root->next == element);
 
 		clear(ztext);
 
-		CHECK(ztext->root_element.next == nullptr);
+		CHECK(ztext->root->next == nullptr);
 
 		destroy(ztext);
 	}
@@ -853,7 +873,7 @@ printf("--- 5.0 ---\n");
 			return Error_Invalid_Parameter;
 		}
 
-		Element*        tail        = find_tail_(&ztext->root_element);
+		Element*        tail        = find_tail_(ztext->root);
 		Element*        element     = nullptr;
 		size_t          index_begin = string_skip_whitespace_(string, 0);
 		size_t          index_end   = 0;
@@ -1534,7 +1554,7 @@ debug_element(element);
 			// Error
 		}
 
-		return &ztext->root_element;
+		return ztext->root;
 	}
 
 
