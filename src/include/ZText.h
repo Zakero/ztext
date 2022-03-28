@@ -62,11 +62,12 @@
 	X(Error_None                            ,  0 , "No Error"               ) \
 	X(Error_Invalid_Parameter               ,  1 , "A parameter is invalid" ) \
 	X(Error_Element_In_Use                  ,  2 , "The requested Element is in use by another ZText object" ) \
-	X(Error_Parser_Invalid_Token_Name       ,  3 , "The Parser found an invalid token name" ) \
-	X(Error_Parser_No_Text_Found            ,  4 , "The Parser was not able to find any text" ) \
-	X(Error_Parser_Token_End_Marker_Missing ,  5 , "The Parser was not able to find the token closer '}}'" ) \
-	X(Error_Parser_Token_Name_Missing       ,  6 , "The Parser was not able to find the token name"        ) \
-	X(Error_Parser_Invalid_Token_Identifier ,  7 , "The Parser found an invalid token indentifier" ) \
+	X(Error_Element_Type_Not_Text           ,  3 , "The expected Element type is text"                       ) \
+	X(Error_Parser_Invalid_Token_Name       ,  4 , "The Parser found an invalid token name" ) \
+	X(Error_Parser_No_Text_Found            ,  5 , "The Parser was not able to find any text" ) \
+	X(Error_Parser_Token_End_Marker_Missing ,  6 , "The Parser was not able to find the token closer '}}'" ) \
+	X(Error_Parser_Token_Name_Missing       ,  7 , "The Parser was not able to find the token name"        ) \
+	X(Error_Parser_Invalid_Token_Identifier ,  8 , "The Parser found an invalid token indentifier" ) \
 
 
 // }}}
@@ -110,19 +111,26 @@ namespace ztext
 	[[]]          void            clear_elements(ZText*) noexcept;
 	[[]]          void            clear_variables(ZText*) noexcept;
 	[[]]          std::error_code parse(ZText*, const std::string&) noexcept;
-	[[nodiscard]] Element*        root_element(ZText*) noexcept;
+	[[nodiscard]] Element*        root_element(const ZText*) noexcept;
 
 	// --- Element --- //
 	[[]]          std::error_code element_append(ZText*, Element*, Element*) noexcept;
 	[[]]          Element*        element_destroy(Element*&) noexcept;
 	[[]]          void            element_remove(Element*) noexcept;
-	[[nodiscard]] Element*        element_next(Element*) noexcept;
-	[[nodiscard]] Element*        element_prev(Element*) noexcept;
+	[[nodiscard]] Element*        element_next(const Element*) noexcept;
+	[[nodiscard]] Element*        element_prev(const Element*) noexcept;
 
-	[[nodiscard]] std::string     element_eval(Element*) noexcept;
+	[[nodiscard]] std::string     element_eval(const Element*) noexcept;
 
 	// --- Element: Text --- //
 	[[nodiscard]] Element*        element_text_create(const std::string&) noexcept;
+	[[]]          std::error_code element_text_set(Element*, const std::string&) noexcept;
+
+	// --- Element: Variable --- //
+	// Place-Holder: Implement later
+	[[nodiscard]] Element*        element_variable_create(const std::string&) noexcept;
+
+
 
 	// --- Debugging --- //
 	#ifdef ZTEXT_DEBUG_ENABLED
@@ -221,8 +229,7 @@ namespace ztext
 namespace ztext
 {
 	enum class Type : uint8_t
-	{	Root
-	,	Text
+	{	Text
 	,	Variable
 	,	Command
 	};
@@ -269,7 +276,6 @@ namespace
 	{
 		switch(type)
 		{
-			case ztext::Type::Root:     return "root";
 			case ztext::Type::Variable: return "variable";
 			case ztext::Type::Text:     return "text";
 			case ztext::Type::Command:  return "command";
@@ -504,7 +510,7 @@ TEST_CASE("clear/variable")
 // }}}
 // {{{ Utility: root_element
 
-ztext::Element* ztext::root_element(ztext::ZText* ztext
+ztext::Element* ztext::root_element(const ztext::ZText* ztext
 	) noexcept
 {
 	if(ztext == nullptr)
@@ -638,7 +644,9 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 	#if ZTEXT_DEBUG_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR << "Parameter 'element' can not be null\n";
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
 	}
 	#endif
 
@@ -697,7 +705,9 @@ void ztext::element_remove(ztext::Element* element
 	#if ZTEXT_DEBUG_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR << "Parameter 'element' can not be null\n";
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
 	}
 	#endif
 
@@ -740,19 +750,22 @@ TEST_CASE("element/remove")
 	CHECK(test->next  == nullptr);
 	CHECK(test->prev  == nullptr);
 	CHECK(test->ztext == nullptr);
+	CHECK(test->text  == "test");
 
 	ztext::destroy(zt);
 }
 #endif // }}}
 
 
-ztext::Element* ztext::element_next(ztext::Element* element
+ztext::Element* ztext::element_next(const ztext::Element* element
 		) noexcept
 {
 	#if ZTEXT_DEBUG_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR << "Parameter 'element' can not be null\n";
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
 	}
 	#endif
 
@@ -783,13 +796,15 @@ TEST_CASE("element/next")
 #endif // }}}
 
 
-ztext::Element* ztext::element_prev(ztext::Element* element
+ztext::Element* ztext::element_prev(const ztext::Element* element
 	) noexcept
 {
 	#if ZTEXT_DEBUG_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR << "Parameter 'element' can not be null\n";
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
 	}
 	#endif
 
@@ -819,19 +834,31 @@ TEST_CASE("element/prev")
 #endif // }}}
 
 
-std::string ztext::element_eval(ztext::Element* element
+std::string ztext::element_eval(const ztext::Element* element
 	) noexcept
 {
 	#if ZTEXT_DEBUG_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR << "Parameter 'element' can not be null\n";
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+	}
+	#endif
+
+	#if ZTEXT_DEBUG_ENABLED
+	if(element->ztext == nullptr)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' must be a member of a ZText object"
+			<< '\n';
+
+		return {};
 	}
 	#endif
 
 	switch(element->type)
 	{
-		case ztext::Type::Root:     return {};
 		case ztext::Type::Text:     return element->text;
 		//case ztext::Type::Variable: return element_eval_variable_(element);
 		case ztext::Type::Variable: ZTEXT_ERROR << "Not Implemented\n"; break;//return eval_command(element);
@@ -840,6 +867,21 @@ std::string ztext::element_eval(ztext::Element* element
 
 	return {};
 }
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/eval")
+{
+	ztext::ZText*   zt   = ztext::create();
+	ztext::Element* text = ztext::element_text_create("text");
+
+	CHECK(ztext::element_eval(text) == "");
+
+	ztext::element_append(zt, nullptr, text);
+	CHECK(ztext::element_eval(text) == "text");
+
+	destroy(zt);
+}
+#endif // }}}
 
 // {{{ Element: Text
 
@@ -853,6 +895,136 @@ ztext::Element* ztext::element_text_create(const std::string& string
 
 	return element;
 }
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/text/create")
+{
+	ztext::ZText*   zt   = ztext::create();
+	ztext::Element* text = ztext::element_text_create("text");
+
+	CHECK(text->text == "text");
+
+	destroy(zt);
+}
+#endif // }}}
+
+
+std::error_code ztext::element_text_set(Element* element
+	, const std::string& text
+	) noexcept
+{
+	#if ZTEXT_DEBUG_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+	#endif
+
+	#if ZTEXT_DEBUG_ENABLED
+	if(element->type != ztext::Type::Text)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' must be of type 'text'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Text;
+	}
+	#endif
+
+	element->text = text;
+
+	return Error_None;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/text/set")
+{
+	ztext::Element* element = nullptr;
+	std::error_code error = {};
+
+	error = ztext::element_text_set(element, "aaa");
+	CHECK(error == ztext::Error_Invalid_Parameter);
+
+	element = ztext::element_variable_create("var");
+	error = ztext::element_text_set(element, "bbb");
+	CHECK(error == ztext::Error_Element_Type_Not_Text);
+
+	element = ztext::element_text_create("ccc");
+	ztext::element_text_set(element, "ddd");
+	CHECK(element->text == "ddd");
+}
+#endif // }}}
+
+// }}}
+// {{{ Element: Text
+
+ztext::Element* ztext::element_variable_create(const std::string& name
+	) noexcept
+{
+	ztext::Element* element = new ztext::Element;
+
+	element->type = ztext::Type::Variable;
+	element->text = name;
+
+	return element;
+}
+
+#if 0
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/text/create")
+{
+	ztext::ZText*   zt   = ztext::create();
+	ztext::Element* text = ztext::element_text_create("text");
+
+	CHECK(text->text == "text");
+
+	destroy(zt);
+}
+#endif // }}}
+
+
+std::error_code ztext::element_text_set(Element* element
+	, const std::string& text
+	) noexcept
+{
+	#if ZTEXT_DEBUG_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+	#endif
+
+
+	return Error_None;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/text/set")
+{
+	ztext::Element* element = nullptr;
+	std::error_code error = {};
+
+	error = ztext::element_text_set(element, "aaa");
+	CHECK(error == ztext::Error_Invalid_Parameter);
+
+	element = ztext::element_variable_create("var");
+	error = ztext::element_text_set(element, "bbb");
+	CHECK(error == ztext::Error_Wrong_Type);
+
+	element = ztext::element_text_create("bbb");
+	ztext::element_text_set(element, "ccc");
+	CHECK(element->text == "ccc");
+}
+#endif // }}}
+#endif
 
 // }}}
 // }}}
@@ -2036,9 +2208,6 @@ debug_element(element);
 
 		switch(element->type)
 		{
-			case Type::Root:
-				printf("type: %d (Root)\n", (int)element->type);
-				break;
 			case Type::Variable:
 				printf("type: %d (Variable)\n", (int)element->type);
 				printf("variable: %s\n", element->text.c_str());
