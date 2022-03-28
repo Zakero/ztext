@@ -305,6 +305,15 @@ TEST_CASE("create")
 void ztext::destroy(ztext::ZText*& ztext
 	) noexcept
 {
+	if(ztext == nullptr)
+	{
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
+	}
+
 	ztext::clear(ztext);
 
 	delete ztext;
@@ -329,7 +338,11 @@ void ztext::clear(ztext::ZText* ztext
 {
 	if(ztext == nullptr)
 	{
-		// Error
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
 	}
 
 	ztext::clear_commands(ztext);
@@ -370,7 +383,11 @@ void ztext::clear_commands(ztext::ZText* ztext
 {
 	if(ztext == nullptr)
 	{
-		// Error
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
 	}
 
 	ztext->command = {};
@@ -404,7 +421,11 @@ void ztext::clear_elements(ztext::ZText* ztext
 {
 	if(ztext == nullptr)
 	{
-		// Error
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
 	}
 
 	ztext::Element* element = ztext->root;
@@ -444,7 +465,11 @@ void ztext::clear_variables(ztext::ZText* ztext
 {
 	if(ztext == nullptr)
 	{
-		// Error
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
 	}
 
 	ztext->variable = {};
@@ -484,7 +509,11 @@ ztext::Element* ztext::root_element(ztext::ZText* ztext
 {
 	if(ztext == nullptr)
 	{
-		// Error
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
 	}
 
 	return ztext->root;
