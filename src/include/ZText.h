@@ -63,12 +63,13 @@
 	X(Error_Invalid_Parameter               ,  1 , "A parameter is invalid" ) \
 	X(Error_Element_In_Use                  ,  2 , "The requested Element is in use by another ZText object" ) \
 	X(Error_Element_Type_Not_Text           ,  3 , "The expected Element type is text"                       ) \
-	X(Error_Parser_Invalid_Token            ,  4 , "The Parser found an invalid token" ) \
+	X(Error_Parser_Token_Invalid            ,  4 , "The Parser found an invalid token" ) \
 	X(Error_Parser_Token_Name_Invalid       ,  5 , "The Parser found an invalid token name" ) \
 	X(Error_Parser_No_Text_Found            ,  6 , "The Parser was not able to find any text" ) \
 	X(Error_Parser_Token_End_Marker_Missing ,  7 , "The Parser was not able to find the token end marker '}}'" ) \
 	X(Error_Parser_Token_Name_Missing       ,  8 , "The Parser was not able to find the token name"        ) \
-	X(Error_Parser_Invalid_Token_Identifier ,  9 , "The Parser found an invalid token indentifier" ) \
+	X(Error_Parser_Token_Identifier_Invalid ,  9 , "The Parser found an invalid token indentifier" ) \
+	X(Error_Parser_Variable_Content_Invalid , 10 , "The Parser found an invalid content used with a variable" ) \
 
 
 // }}}
@@ -320,6 +321,15 @@ namespace
 			, token.identifier
 			, (token.identifier == 0 || token.identifier >= len || token.identifier >= len) ? '\0' : string[token.identifier]
 			);
+		printf("assignment: %lu '%c'\n"
+			, token.assignment
+			, (token.assignment == 0 || token.assignment >= len || token.assignment >= len) ? '\0' : string[token.assignment]
+			);
+		printf("content   : %lu,%lu '%s'\n"
+			, token.content_begin
+			, token.content_end
+			, (token.content_begin >= token.content_end || token.content_begin >= len || token.content_end >= len) ? "" : std::string(string.substr(token.content_begin, (token.content_end - token.content_begin + 1))).c_str()
+			);
 	}
 
 	// }}}
@@ -439,6 +449,15 @@ namespace
 	}
 
 
+	std::string string_substr_(const std::string& string
+		, size_t begin
+		, size_t end
+		) noexcept
+	{
+		return string.substr(begin, (end - begin + 1));
+	}
+
+
 	std::string string_trim_(std::string string
 		) noexcept
 	{
@@ -485,6 +504,7 @@ namespace
 					&& string[index + 1] == Token_Begin
 					)
 				{
+					index--;
 					break;
 				}
 			}
@@ -492,11 +512,11 @@ namespace
 			index++;
 		}
 
-		std::string text = string.substr(string_begin, index - string_begin);
+		std::string text = string_substr_(string, string_begin, index);
 		text = string_trim_(text);
 		text = string_clean_whitespace_(text);
 
-		string_begin = index;
+		string_begin = index + 1;
 
 		if(text.empty() == true)
 		{
@@ -516,6 +536,8 @@ namespace
 		, const std::string& string
 		) noexcept
 	{
+printf("%s\n", __FUNCTION__);
+debug(token, string);
 		size_t index = string_skip_whitespace_(string, token.begin + 2);
 		token.name_begin = index;
 
@@ -543,6 +565,63 @@ namespace
 	}
 
 
+	std::error_code parse_token_identifier_(Token& token
+		, const std::string& string
+		) noexcept
+	{
+printf("%s\n", __FUNCTION__);
+debug(token, string);
+
+		size_t index = string_skip_whitespace_(string, token.name_end + 1);
+		token.identifier = index;
+
+		if(string[index] == '$')
+		{
+			return ztext::Error_None;
+		}
+
+		return ztext::Error_Parser_Token_Identifier_Invalid;
+	}
+
+
+	std::error_code parse_token_variable_(Token& token
+		, const std::string& string
+		) noexcept
+	{
+printf("%s\n", __FUNCTION__);
+debug(token, string);
+
+		size_t index = string_skip_whitespace_(string, token.identifier + 1);
+printf("%lu %c\n", index, string[index]);
+
+		if(string[index] == Token_End)
+		{
+			return ztext::Error_None;
+		}
+
+		token.assignment = index;
+
+		if(string[index] != Assignment)
+		{
+			return ztext::Error_Parser_Variable_Content_Invalid;
+		}
+
+		index = string_skip_whitespace_(string, index + 1);
+		token.content_begin = index;
+		token.content_end   = token.end - 2;
+debug(token, string);
+printf(
+"-------------------------------\n"
+"TODO: index_end = find_token_end_(string, index, nested_count&)\n"
+"TODO: index = string_rskip_whitespace_(string, index)\n"
+"TODO: element = convent_token_to_variable_(token, string)\n"
+"-------------------------------\n"
+);
+
+		return ztext::Error_None;
+	}
+
+
 	std::error_code parse_token_(ztext::ZText* ztext
 		, const std::string& string
 		, size_t&            string_begin
@@ -550,7 +629,7 @@ namespace
 		, ztext::Element*&   element
 		) noexcept
 	{
-//printf("%s\n", __FUNCTION__);
+printf("%s\n", __FUNCTION__);
 
 		std::error_code error       = {};
 		size_t          index_begin = string_begin + 2;
@@ -583,7 +662,6 @@ namespace
 		token.end   = index_end;
 
 		error = parse_token_name_(token, string);
-//debug(token, string);
 
 		if(error != ztext::Error_None)
 		{
@@ -591,7 +669,22 @@ namespace
 			return error;
 		}
 
-		element = ztext::element_variable_create(string.substr(token.name_begin, (token.name_end - token.name_begin)));
+		error = parse_token_identifier_(token, string);
+
+		if(error != ztext::Error_None)
+		{
+			string_begin = token.identifier;
+			return error;
+		}
+
+		if(string[token.identifier] == Identifier_Variable)
+		{
+			parse_token_variable_(token, string);
+			element = ztext::element_variable_create(
+				string_substr_(string, token.name_begin, token.name_end)
+				);
+		}
+
 
 
 string_begin = string_end;
@@ -657,6 +750,7 @@ printf("--- 5.0 ---\n");
 		, ztext::Element*&   element_head
 		) noexcept
 	{
+printf("%s\n", __FUNCTION__);
 		ztext::Element* element_tail = nullptr;
 
 		while(index_begin <= index_end)
@@ -674,6 +768,11 @@ printf("--- 5.0 ---\n");
 			else
 			{
 				error = parse_text_(ztext, string, index_begin, index_end, element);
+
+				if(error == ztext::Error_Parser_No_Text_Found)
+				{
+					continue;
+				}
 			}
 
 			if(error != ztext::Error_None)
@@ -1019,12 +1118,19 @@ std::error_code ztext::parse(ztext::ZText* ztext
 			if(error == ztext::Error_Parser_Token_End_Marker_Missing
 				|| error == ztext::Error_Parser_Token_Name_Invalid
 				|| error == ztext::Error_Parser_Token_Name_Missing
+				|| error == ztext::Error_Parser_Token_Identifier_Invalid
+				|| error == ztext::Error_Parser_Variable_Content_Invalid
 				)
 			{
 				report_error(error, string, index_begin);
 			}
 
 			return error;
+		}
+
+		if(element == nullptr)
+		{
+			element = ztext::element_text_create("");
 		}
 	}
 
@@ -1257,11 +1363,10 @@ TEST_CASE("parse/variable")
 
 	SUBCASE("Variable")
 	{
-#if 0
 		error = ztext::parse(zt, "{{var$}}");
-		CHECK(error == Error_None);
+		CHECK(error == ztext::Error_None);
 
-		ztext::Element* element = ztext::element_next(root);
+		ztext::Element* element = ztext::root_element(zt);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
@@ -1272,9 +1377,9 @@ TEST_CASE("parse/variable")
 	SUBCASE("Variable With White-Space")
 	{
 		error = ztext::parse(zt, " {{ var $ }} ");
-		CHECK(error == Error_None);
+		CHECK(error == ztext::Error_None);
 
-		ztext::Element* element = ztext::element_next(root);
+		ztext::Element* element = ztext::root_element(zt);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
@@ -1284,10 +1389,11 @@ TEST_CASE("parse/variable")
 
 	SUBCASE("Variable With Data")
 	{
+printf("--------------------------------------------------------------------------------\n");
 		error = ztext::parse(zt, "{{var$=foo}}");
-		CHECK(error == Error_None);
+		CHECK(error == ztext::Error_None);
 
-		ztext::Element* element = ztext::element_next(root);
+		ztext::Element* element = ztext::root_element(zt);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
@@ -1298,9 +1404,9 @@ TEST_CASE("parse/variable")
 	SUBCASE("Variable With Data and White-Space")
 	{
 		error = ztext::parse(zt, " {{ var $ = foo }} ");
-		CHECK(error == Error_None);
+		CHECK(error == ztext::Error_None);
 
-		ztext::Element* element = ztext::element_next(root);
+		ztext::Element* element = ztext::root_element(zt);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
@@ -1314,14 +1420,15 @@ TEST_CASE("parse/variable")
 			foo	\
 			bar	\
 			}} ");
-		CHECK(error == Error_None);
+		CHECK(error == ztext::Error_None);
 
-		ztext::Element* element = ztext::element_next(root);
+		ztext::Element* element = ztext::root_element(zt);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
 		CHECK(element->text == "var");
 		CHECK(ztext::element_eval(element) == "foo bar");
+#if 0
 	}
 
 	SUBCASE("Variable With Nested Variables")
@@ -1937,70 +2044,6 @@ namespace ztext
 	// {{{ Parse
 
 #if 0
-#endif
-
-
-#if 0
-	std::error_code parse_token_identifier_(const std::string& string
-		, Token& token
-		) noexcept
-	{
-		//debug_token_(string, token);
-
-		size_t index = string_skip_whitespace_(string, token.name_end + 1);
-
-		if(string[index] == '$')
-		{
-			token.identifier = index;
-
-			return Error_None;
-		}
-
-		return Error_Parser_Invalid_Token_Identifier;
-	}
-#endif
-
-	
-#if 0
-	std::error_code parse_token_variable_(ZText* ztext
-		, const std::string& string
-		, Token&             token
-		, Element*&          element
-		) noexcept
-	{
-printf("--- %s ---\n", __FUNCTION__);
-//debug_token_(string, token);
-		size_t index = 0;
-
-		const std::string name = string.substr(token.name_begin, token.name_end - token.name_begin + 1);
-
-		// Is variable being set?
-		index = token.identifier + 1;
-		index = string_skip_whitespace_(string, index);
-
-		std::string value = "";
-		Element* content = nullptr;
-		if(string[index] == '=')
-		{
-			index = string_skip_whitespace_(string, index + 1);
-			content = element_create_(ztext, Type::Text);
-			content->text = string.substr(index, token.end - index - 1);
-			content->text = string_trim_(content->text);
-			content->text = string_clean_whitespace_(content->text);
-			//content->text = string_clean_escapes_(content->text);
-
-printf("content:\n");
-debug_element(content);
-		}
-
-		element = element_create_(ztext, Type::Variable);
-		element->text  = name;
-		element->child = content;
-printf("element:\n");
-debug_element(element);
-
-		return Error_None;
-	}
 #endif
 
 
