@@ -122,6 +122,10 @@ namespace ztext
 
 	[[nodiscard]] std::string     element_eval(const Element*) noexcept;
 
+	// --- Element: Command --- //
+	//[[nodiscard]] std::error_code command_child() const noexcept;
+	//[[]]          std::error_code command_child_set(Elment*) noexcept;
+
 	// --- Element: Text --- //
 	[[nodiscard]] Element*        element_text_create(const std::string&) noexcept;
 	[[]]          std::error_code element_text_set(Element*, const std::string&) noexcept;
@@ -241,6 +245,7 @@ namespace ztext
 		Element*        next     = nullptr;
 		Element*        prev     = nullptr;
 		Element*        child    = nullptr;
+		Element*        parent   = nullptr;
 		MapStringString property = {};
 		std::string     text     = {};
 		Type            type     = Type::Text;
@@ -260,6 +265,14 @@ namespace ztext
 
 namespace
 {
+	// {{{ Constants
+
+	constexpr char Token_Begin = '{';
+	constexpr char Token_End   = '}';
+
+	// }}}
+	// {{{ Element Navigation
+
 	ztext::Element* find_tail_(ztext::Element* element
 		) noexcept
 	{
@@ -271,7 +284,206 @@ namespace
 		return element;
 	}
 
-	std::string to_string(const ztext::Type type
+	// }}}
+	// {{{ String Helpers
+
+	// TODO Use character const
+	std::string string_clean_escapes_(std::string string
+		) noexcept
+	{
+		size_t index = 0;
+
+		while(index < string.size())
+		{
+			if(string[index] != '\\')
+			{
+				index++;
+
+				continue;
+			}
+
+			if((index + 2) < string.size())
+			{
+				if(string[index + 1] == Token_Begin
+					&& string[index + 2] == Token_Begin
+					)
+				{
+					string.erase(index, 1);
+				}
+				else if(string[index + 1] == Token_End
+					&& string[index + 2] == Token_End
+					)
+				{
+					string.erase(index, 1);
+				}
+			}
+
+			index += 2;
+		}
+
+		return string;
+	}
+
+
+	std::string string_clean_whitespace_(std::string string
+		) noexcept
+	{
+		size_t index_1 = 0;
+		size_t index_2 = 0;
+
+		while(index_1 < string.size())
+		{
+			if(std::isspace(static_cast<unsigned char>(string[index_1])) == 0)
+			{
+				index_1++;
+				continue;
+			}
+
+			index_2 = index_1 + 1;
+
+			while(std::isspace(static_cast<unsigned char>(string[index_2])) != 0)
+			{
+				index_2++;
+			}
+
+			string.replace(index_1, index_2 - index_1, " ");
+
+			index_1++;
+		}
+
+		return string;
+	}
+
+
+	std::string string_trim_(std::string string
+		) noexcept
+	{
+		size_t len   = string.size();
+		size_t start = 0;
+
+		while(start < len
+			&& std::isspace(static_cast<unsigned char>(string[start])) != 0
+			)
+		{
+			start++;
+		}
+
+		size_t end = len - 1;
+
+		while(end > 0
+			&& std::isspace(static_cast<unsigned char>(string[end])) != 0
+			)
+		{
+			end--;
+		}
+
+		return string.substr(start, end - start + 1);
+	}
+	
+	// }}}
+	// {{{ Parse
+
+	std::error_code parse_text_(ztext::ZText* ztext
+		, const std::string& string
+		, size_t&            index_begin
+		, size_t&            index_end
+		, ztext::Element*&   element
+		) noexcept
+	{
+		size_t index = index_begin;
+
+		while(index <= index_end)
+		{
+			if(string[index] == Token_Begin)
+			{
+				if(string[index - 1] != '\\'
+					&& (index + 1) <= index_end
+					&& string[index + 1] == Token_Begin
+					)
+				{
+					break;
+				}
+			}
+
+			index++;
+		}
+
+		std::string text = string.substr(index_begin, index - index_begin);
+		text = string_trim_(text);
+		text = string_clean_whitespace_(text);
+
+		index_begin = index;
+
+		if(text.empty() == true)
+		{
+			element = nullptr;
+
+			return ztext::Error_Parser_No_Text_Found;
+		}
+
+		element = ztext::element_text_create(text);
+		element->ztext = ztext;
+
+		return ztext::Error_None;
+	}
+
+
+	std::error_code parse_(ztext::ZText* ztext
+		, const std::string& string
+		, size_t&            index_begin
+		, size_t&            index_end
+		, ztext::Element*&   element_head
+		) noexcept
+	{
+		ztext::Element* element_tail = nullptr;
+
+		while(index_begin <= index_end)
+		{
+			ztext::Element* element = nullptr;
+			std::error_code error   = ztext::Error_None;
+
+			if((index_begin + 1) <= index_end
+				&& string[index_begin + 0] == Token_Begin
+				&& string[index_begin + 1] == Token_Begin
+				)
+			{
+				break;
+				//error = parse_token_(ztext, string, index_begin, index_end, element);
+			}
+			else
+			{
+				error = parse_text_(ztext, string, index_begin, index_end, element);
+			}
+
+			if(error != ztext::Error_None)
+			{
+				while(element_head != nullptr)
+				{
+					element_head = ztext::element_destroy(element_head);
+				}
+
+				return error;
+			}
+
+			if(element_head == nullptr)
+			{
+				ztext::element_append(ztext, element_tail, element);
+				element_head = element;
+			}
+			else
+			{
+				ztext::element_append(ztext, element_tail, element);
+			}
+
+			element_tail = element;
+		}
+
+		return ztext::Error_None;
+	}
+
+	// }}}
+
+	std::string to_string_(const ztext::Type type
 		) noexcept
 	{
 		switch(type)
@@ -282,6 +494,41 @@ namespace
 		}
 
 		return {};
+	}
+
+	void report_error(const std::error_code& error
+		, const std::string& string
+		, const size_t       index_begin
+		) noexcept
+	{
+		size_t line_count = 1;
+		size_t line_start = 0;
+		size_t line_end   = 0;
+		size_t index = 0;
+
+		while(index < index_begin)
+		{
+			if(string[index] == '\n')
+			{
+				line_count++;
+				line_start = index + 1;
+			}
+		}
+
+		while(line_start < string.size() && std::isspace(string[line_start]))
+		{
+			line_start++;
+		}
+
+		line_end = line_start;
+		while(line_end < string.size() && string[line_end] != '\n')
+		{
+			line_end++;
+		}
+
+		printf("%s\n", string.substr(line_start, line_end - line_start).c_str());
+		printf("%*s\n", int(index_begin - line_start), "^");
+		printf("Line: %ld, Char: %ld, Error: %s\n", line_count, index_begin, error.message().c_str());
 	}
 }
 
@@ -506,6 +753,246 @@ TEST_CASE("clear/variable")
 // }}}
 // {{{ Utility: parse
 
+std::error_code ztext::parse(ztext::ZText* ztext
+	, const std::string& string
+	) noexcept
+{
+	if(ztext == nullptr)
+	{
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
+		return Error_Invalid_Parameter;
+	}
+
+	ztext::Element* element = nullptr;
+	std::error_code error   = {};
+
+	if(string.empty() == true)
+	{
+		element = element_text_create("");
+	}
+	else
+	{
+		size_t index_begin = 0;
+		size_t index_end   = string.size() - 1;
+		error = parse_(ztext, string, index_begin, index_end, element);
+
+		if(error == ztext::Error_Parser_No_Text_Found)
+		{
+			element = ztext::element_text_create("");
+			error = Error_None;
+		}
+
+		if(error != Error_None)
+		{
+			while(element != nullptr)
+			{
+printf("---element---\n"); ztext::print(element);
+				element = ztext::element_destroy(element);
+			}
+
+			if(error == Error_None
+				)
+			{
+				report_error(error, string, index_begin);
+			}
+
+			return error;
+		}
+	}
+
+	ztext::Element* index = ztext->root;
+	if(index != nullptr)
+	{
+		index = find_tail_(index);
+	}
+
+	error = ztext::element_append(ztext, index, element);
+
+	if(error != Error_None)
+	{
+		while(element != nullptr)
+		{
+			element = ztext::element_destroy(element);
+		}
+
+		return error;
+	}
+
+	return Error_None;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/text
+TEST_CASE("parse/text")
+{
+	ztext::ZText*   zt    = ztext::create();
+	std::error_code error = {};
+
+	SUBCASE("Invaild Data")
+	{
+		error = ztext::parse(nullptr, "foo");
+		CHECK(error == ztext::Error_Invalid_Parameter);
+	}
+
+	SUBCASE("Pure White-Space")
+	{
+		ztext::Element* element = nullptr;
+
+		const std::string empty    = "";
+		const std::string newlines = "\n\n\n";
+		const std::string spaces   = "   ";
+		const std::string tabs     = "		";
+
+		// -------------------------------------- //
+
+		ztext::clear(zt);
+		error = ztext::parse(zt, empty);
+		CHECK(error == ztext::Error_None);
+		
+		element = ztext::root_element(zt);
+		CHECK(element != nullptr);
+		CHECK(ztext::element_eval(element) == "");
+
+		// -------------------------------------- //
+
+		ztext::clear(zt);
+		error = ztext::parse(zt, newlines);
+		CHECK(error == ztext::Error_None);
+		
+		element = ztext::root_element(zt);
+		CHECK(element != nullptr);
+		CHECK(ztext::element_eval(element) == "");
+
+		// -------------------------------------- //
+
+		ztext::clear(zt);
+		error = ztext::parse(zt, spaces);
+		CHECK(error == ztext::Error_None);
+		
+		element = ztext::root_element(zt);
+		CHECK(element != nullptr);
+		CHECK(ztext::element_eval(element) == "");
+
+		// -------------------------------------- //
+
+		ztext::clear(zt);
+		error = ztext::parse(zt, tabs);
+		CHECK(error == ztext::Error_None);
+		
+		element = ztext::root_element(zt);
+		CHECK(element != nullptr);
+		CHECK(ztext::element_eval(element) == "");
+	}
+
+	SUBCASE("Simple Text")
+	{
+		std::string text = "X";
+
+		error = ztext::parse(zt, text);
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == text);
+	}
+
+	SUBCASE("Leading White-Space")
+	{
+		std::string text = "X";
+
+		error = ztext::parse(zt, " 	 " + text);
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == text);
+	}
+
+	SUBCASE("Trailing White-Space")
+	{
+		std::string text = "X";
+
+		error = ztext::parse(zt, text + " 	 	");
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == text);
+	}
+
+	SUBCASE("Leading and Trailing White-Space")
+	{
+		std::string text = "X";
+
+		error = ztext::parse(zt, "	" + text + "       ");
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == text);
+	}
+
+	SUBCASE("Clean White-Space")
+	{
+		std::string text = "X	Y  Z";
+
+		error = ztext::parse(zt, text);
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == "X Y Z");
+	}
+
+	SUBCASE("Multi-Line")
+	{
+		std::string text = " \
+			X            \
+			Y            \
+			Z            \
+			";
+
+		error = ztext::parse(zt, text);
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == "X Y Z");
+	}
+
+	SUBCASE("Before Token")
+	{
+		std::string text = "foo {{token$}}";
+
+		error = ztext::parse(zt, text);
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == "foo");
+	}
+
+	SUBCASE("Escaped Token")
+	{
+		std::string text = "\\{{token\\}}";
+
+		error = ztext::parse(zt, text);
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == "{{token}}");
+	}
+
+	SUBCASE("Embedded Escaped Token")
+	{
+		std::string text = "foo \\{{token\\}} bar";
+
+		error = ztext::parse(zt, text);
+		CHECK(error == ztext::Error_None);
+		
+		ztext::Element* element = ztext::root_element(zt);
+		CHECK(ztext::element_eval(element) == "foo {{token}} bar");
+	}
+
+	destroy(zt);
+}
+#endif // }}}
 
 // }}}
 // {{{ Utility: root_element
@@ -605,9 +1092,10 @@ std::error_code ztext::element_append(ztext::ZText* ztext
 		return Error_None;
 	}
 
-	element->prev  = position;
-	element->next  = position->next;
-	position->next = element;
+	element->parent = position->parent;
+	element->prev   = position;
+	element->next   = position->next;
+	position->next  = element;
 
 	if(element->next != nullptr)
 	{
@@ -663,6 +1151,7 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 	element->next     = nullptr;
 	element->prev     = nullptr;
 	element->child    = nullptr;
+	element->parent   = nullptr;
 	element->property = {};
 	element->text     = {};
 	element->type     = Type::Text;
@@ -676,23 +1165,37 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
 TEST_CASE("element/destroy")
 {
-	ztext::ZText*   zt   = ztext::create();
-	ztext::Element* foo  = ztext::element_text_create("foo");
-	ztext::Element* bar  = ztext::element_text_create("bar");
-	ztext::Element* test = ztext::element_text_create("test");
+	ztext::ZText*   zt    = ztext::create();
+	ztext::Element* foo   = ztext::element_text_create("foo");
+	ztext::Element* bar   = ztext::element_text_create("bar");
+	ztext::Element* test  = ztext::element_text_create("test");
+	ztext::Element* xyzzy = ztext::element_text_create("xyzzy");
 
 	ztext::element_append(zt, nullptr, foo);
 	ztext::element_append(zt, foo    , test);
 	ztext::element_append(zt, test   , bar);
+	ztext::element_append(zt, bar    , xyzzy);
+
+	// foo -- test -- bar -- xyzzy
 
 	CHECK(ztext::element_next(foo) == test);
 	CHECK(ztext::element_prev(bar) == test);
 
 	ztext::element_destroy(test);
-	CHECK(ztext::element_next(foo)  == bar);
-	CHECK(ztext::element_prev(bar)  == foo);
+	// foo -- bar -- xyzzy
+	CHECK(ztext::element_next(foo) == bar);
+	CHECK(ztext::element_prev(bar) == foo);
 
 	CHECK(test == nullptr);
+
+	ztext::element_destroy(xyzzy);
+
+	// foo -- bar
+	CHECK(ztext::element_next(bar) == nullptr);
+
+	ztext::element_destroy(foo);
+	// bar
+	CHECK(ztext::element_prev(bar) == nullptr);
 
 	ztext::destroy(zt);
 }
@@ -709,7 +1212,29 @@ void ztext::element_remove(ztext::Element* element
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
+
+	if(element->ztext == nullptr)
+	{
+		ZTEXT_ERROR
+			<< "Element does not belong to a ZText object"
+			<< '\n';
+	}
 	#endif
+
+	if(element->parent == nullptr)
+	{
+		if(element->ztext->root == element)
+		{
+			element->ztext->root = element->next;
+		}
+	}
+	else
+	{
+		if(element->parent->child == element)
+		{
+			element->parent->child = element->next;
+		}
+	}
 
 	if(element->next != nullptr)
 	{
@@ -859,7 +1384,7 @@ std::string ztext::element_eval(const ztext::Element* element
 
 	switch(element->type)
 	{
-		case ztext::Type::Text:     return element->text;
+		case ztext::Type::Text:     return string_clean_escapes_(element->text);
 		//case ztext::Type::Variable: return element_eval_variable_(element);
 		case ztext::Type::Variable: ZTEXT_ERROR << "Not Implemented\n"; break;//return eval_command(element);
 		case ztext::Type::Command:  ZTEXT_ERROR << "Not Implemented\n"; break;//return eval_command(element);
@@ -960,7 +1485,7 @@ TEST_CASE("element/text/set")
 #endif // }}}
 
 // }}}
-// {{{ Element: Text
+// {{{ Element: Variable
 
 ztext::Element* ztext::element_variable_create(const std::string& name
 	) noexcept
@@ -1042,7 +1567,7 @@ void ztext::print(const ztext::Element* element
 		printf("\tztext: %p\n", (void*)e->ztext);
 		printf("\t next: %p\n", (void*)e->next);
 		printf("\t prev: %p\n", (void*)e->prev);
-		printf("\t type: %s\n", to_string(e->type).c_str());
+		printf("\t type: %s\n", to_string_(e->type).c_str());
 
 		e = e->next;
 	} while(e != nullptr && to_end == true);
@@ -1064,99 +1589,6 @@ namespace ztext
 		element->type  = type;
 
 		return element;
-	}
-
-
-	std::string string_trim_(std::string string
-		) noexcept
-	{
-		size_t len   = string.size();
-		size_t start = 0;
-
-		while(start < len
-			&& std::isspace(static_cast<unsigned char>(string[start])) != 0
-			)
-		{
-			start++;
-		}
-
-		size_t end = len - 1;
-
-		while(end > 0
-			&& std::isspace(static_cast<unsigned char>(string[end])) != 0
-			)
-		{
-			end--;
-		}
-
-		return string.substr(start, end - start + 1);
-	}
-
-
-	std::string string_clean_escapes_(std::string string
-		) noexcept
-	{
-		size_t index = 0;
-
-		while(index < string.size())
-		{
-			if(string[index] != '\\')
-			{
-				index++;
-
-				continue;
-			}
-
-			if((index + 2) < string.size())
-			{
-				if(string[index + 1] == '{'
-					&& string[index + 2] == '{'
-					)
-				{
-					string.erase(index, 1);
-				}
-				else if(string[index + 1] == '}'
-					&& string[index + 2] == '}'
-					)
-				{
-					string.erase(index, 1);
-				}
-			}
-
-			index += 2;
-		}
-
-		return string;
-	}
-
-
-	std::string string_clean_whitespace_(std::string string
-		) noexcept
-	{
-		size_t index_1 = 0;
-		size_t index_2 = 0;
-
-		while(index_1 < string.size())
-		{
-			if(std::isspace(static_cast<unsigned char>(string[index_1])) == 0)
-			{
-				index_1++;
-				continue;
-			}
-
-			index_2 = index_1 + 1;
-
-			while(std::isspace(static_cast<unsigned char>(string[index_2])) != 0)
-			{
-				index_2++;
-			}
-
-			string.replace(index_1, index_2 - index_1, " ");
-
-			index_1++;
-		}
-
-		return string;
 	}
 
 
@@ -1212,59 +1644,6 @@ namespace ztext
 		size_t assignment     = 0;
 		bool   is_valid       = false;
 	};
-
-
-	std::error_code parse_text_(ztext::ZText* ztext
-		, const std::string& string
-		, size_t&            index_begin
-		, size_t&            index_end
-		, Element*&          element
-		) noexcept
-	{
-		const size_t string_len = string.size();
-printf("--- 3.0 --- len: %lu\n", string_len);
-
-		index_end = index_begin + 1;
-
-printf("--- 3.1 --- %lu\n", index_end);
-		while(index_end < string_len)
-		{
-			if(string[index_end] == '{')
-			{
-				if(string[index_end - 1] != '\\'
-					&& (index_end + 1) < string_len
-					&& string[index_end + 1] == '{'
-					)
-				{
-					break;
-				}
-			}
-
-			index_end++;
-		}
-
-printf("--- 3.2 --- %lu\n", index_end);
-		std::string text = string.substr(index_begin, index_end);
-printf("--- 3.3 --- '%s'\n", text.c_str());
-		text = string_trim_(text);
-printf("--- 3.4 --- '%s'\n", text.c_str());
-		text = string_clean_whitespace_(text);
-printf("--- 3.5 --- '%s'\n", text.c_str());
-		text = string_clean_escapes_(text);
-printf("--- 3.6 --- '%s'\n", text.c_str());
-
-		if(text.empty() == true)
-		{
-			element = nullptr;
-
-			return Error_Parser_No_Text_Found;
-		}
-
-		element = element_create_(ztext, Type::Text);
-		element->text = text;
-
-		return Error_None;
-	}
 
 
 	void debug_token_(const std::string_view& string
@@ -1443,6 +1822,7 @@ printf("--- 5.0 ---\n");
 	}
 
 
+#if 0
 	std::error_code parse(ZText* ztext
 		, const std::string& string
 		) noexcept
@@ -1527,6 +1907,7 @@ printf("--- 4 --- %p\n", (void*)element);
 
 		return Error_None;
 	}
+#endif
 
 	#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/text
 	TEST_CASE("parse/text")
