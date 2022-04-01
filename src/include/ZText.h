@@ -20,6 +20,17 @@
  * TODO: index_end = find_token_end_(string, index, nested_count&)\n"
  * TODO: index = string_rskip_whitespace_(string, index)\n"
  * TODO: element = convent_token_to_variable_(token, string)\n"
+ *
+ *
+ * -------------------------------------------------------------------------
+ * remove ZText* from parse()
+ * - how does this affect parse_() ?
+ * add support to allow an "element chain" to be appended
+ * add element_insert()
+ * add element_ztext()
+ * Removed ZText* from the command lambda
+ * add element_eval_variable()
+ * Test - Subcase - Variable With Data
  */
 
 
@@ -31,6 +42,7 @@
 #include <functional>
 #include <source_location>
 #include <string>
+#include <stack>
 #include <unordered_map>
 
 // POSIX
@@ -66,15 +78,16 @@
 	X(Error_None                               ,  0 , "No Error"               ) \
 	X(Error_Invalid_Parameter                  ,  1 , "A parameter is invalid" ) \
 	X(Error_Element_In_Use                     ,  2 , "The requested Element is in use by another ZText object" ) \
-	X(Error_Element_Type_Not_Text              ,  3 , "The expected Element type is text"                       ) \
-	X(Error_Parser_Token_Invalid               ,  4 , "The Parser found an invalid token" ) \
-	X(Error_Parser_Token_Name_Invalid          ,  5 , "The Parser found an invalid token name" ) \
-	X(Error_Parser_No_Text_Found               ,  6 , "The Parser was not able to find any text" ) \
-	X(Error_Parser_Token_End_Marker_Missing    ,  7 , "The Parser was not able to find the token end marker '}}'" ) \
-	X(Error_Parser_Token_Name_Missing          ,  8 , "The Parser was not able to find the token name"        ) \
-	X(Error_Parser_Token_Identifier_Invalid    ,  9 , "The Parser found an invalid token identifier" ) \
-	X(Error_Parser_Variable_Content_Invalid    , 10 , "The Parser found an invalid content used with a variable" ) \
-	X(Error_Parser_Token_Begin_Marker_Missing  , 11 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
+	X(Error_Element_Type_Not_Text              ,  3 , "The expected Element type is text" ) \
+	X(Error_Element_Type_Not_Variable          ,  4 , "The expected Element type is a variable" ) \
+	X(Error_Parser_Token_Invalid               ,  5 , "The Parser found an invalid token" ) \
+	X(Error_Parser_Token_Name_Invalid          ,  6 , "The Parser found an invalid token name" ) \
+	X(Error_Parser_No_Text_Found               ,  7 , "The Parser was not able to find any text" ) \
+	X(Error_Parser_Token_End_Marker_Missing    ,  8 , "The Parser was not able to find the token end marker '}}'" ) \
+	X(Error_Parser_Token_Name_Missing          ,  9 , "The Parser was not able to find the token name"        ) \
+	X(Error_Parser_Token_Identifier_Invalid    , 10 , "The Parser found an invalid token identifier" ) \
+	X(Error_Parser_Variable_Content_Invalid    , 11 , "The Parser found an invalid content used with a variable" ) \
+	X(Error_Parser_Token_Begin_Marker_Missing  , 12 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
 
 
 // }}}
@@ -119,9 +132,11 @@ namespace ztext
 	[[]]          void            clear_variables(ZText*) noexcept;
 	[[]]          std::error_code parse(ZText*, const std::string&) noexcept;
 	[[nodiscard]] Element*        root_element(const ZText*) noexcept;
+	[[]]          std::error_code root_element_set(ZText*, Element*) noexcept;
+	[[nodiscard]] Element*        root_element_take(ZText*) noexcept;
 
 	// --- Element --- //
-	[[]]          std::error_code element_append(ZText*, Element*, Element*) noexcept;
+	[[]]          std::error_code element_append(Element*, Element*) noexcept;
 	[[]]          Element*        element_destroy(Element*&) noexcept;
 	[[]]          void            element_remove(Element*) noexcept;
 	[[nodiscard]] Element*        element_next(const Element*) noexcept;
@@ -140,6 +155,8 @@ namespace ztext
 	// --- Element: Variable --- //
 	// Place-Holder: Implement later
 	[[nodiscard]] Element*        element_variable_create(const std::string&) noexcept;
+	[[]]          std::error_code element_variable_set(Element*, const std::string&) noexcept;
+	[[]]          std::error_code element_variable_set(Element*, const std::string&, size_t, size_t) noexcept;
 
 
 
@@ -149,9 +166,9 @@ namespace ztext
 	#endif
 
 	// --- Deprecated --- //
-	[[]]          Element*        element_append_command(Element*, const std::string) noexcept;
-	[[]]          Element*        element_append_text(Element*, const std::string) noexcept;
-	[[]]          Element*        element_append_variable(Element*, const std::string) noexcept;
+	//[[]]          Element*        element_append_command(Element*, const std::string) noexcept;
+	//[[]]          Element*        element_append_text(Element*, const std::string) noexcept;
+	//[[]]          Element*        element_append_variable(Element*, const std::string) noexcept;
 
 	[[]]          void            command_set(ZText*, const std::string, const ztext::CommandLambda) noexcept;
 	[[]]          void            command_destroy(ZText*, const std::string) noexcept;
@@ -160,7 +177,7 @@ namespace ztext
 	[[nodiscard]] MapStringString command_property(Element*) noexcept;
 	[[]]          void            command_property_set(Element*, const std::string, const std::string) noexcept;
 
-	[[]]          void            variable_set(ZText*, const std::string, const std::string) noexcept;
+	//[[]]          std::error_code variable_set(ZText*, const std::string, const std::string) noexcept;
 	[[]]          void            variable_destroy(ZText*, const std::string) noexcept;
 
 	#ifdef ZTEXT_DEBUG_ENABLED
@@ -344,7 +361,7 @@ namespace
 		) noexcept
 	{
 printf("\n%s\n", __FUNCTION__);
-print(element, false);
+print(element, true);
 
 		if(element->ztext->variable.contains(element->text) == false)
 		{
@@ -375,6 +392,35 @@ print(element, false);
 		}
 
 		return element;
+	}
+
+	// }}}
+	// {{{ Element Utilities
+
+	void element_ztext_set_(ztext::Element* element_head
+		, ztext::ZText* ztext
+		) noexcept
+	{
+		std::stack<ztext::Element*> stack = {};
+		stack.push(element_head);
+
+		while(stack.empty() == false)
+		{
+			ztext::Element* element = stack.top();
+			stack.pop();
+
+			while(element != nullptr)
+			{
+				element->ztext = ztext;
+
+				if(element->child != nullptr)
+				{
+					stack.push(element->child);
+				}
+
+				element = element->next;
+			}
+		}
 	}
 
 	// }}}
@@ -517,16 +563,15 @@ print(element, false);
 	// }}}
 	// {{{ Parse
 
-	std::error_code parse_(ztext::ZText*, const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
-	std::error_code parse_text_(ztext::ZText*, const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
-	std::error_code parse_token_(ztext::ZText*, const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
+	std::error_code parse_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
+	std::error_code parse_text_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
+	std::error_code parse_token_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
 	std::error_code parse_token_identifier_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_name_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_variable_(Token&, const std::string&) noexcept;
 
 
-	std::error_code parse_text_(ztext::ZText* ztext
-		, const std::string& string
+	std::error_code parse_text_(const std::string& string
 		, size_t&            string_begin
 		, size_t&            string_end
 		, ztext::Element*&   element
@@ -575,7 +620,6 @@ print(element, false);
 		}
 
 		element = ztext::element_text_create(text);
-		element->ztext = ztext;
 
 		return ztext::Error_None;
 	}
@@ -669,8 +713,7 @@ debug(token, string);
 	}
 
 
-	std::error_code parse_token_(ztext::ZText* ztext
-		, const std::string& string
+	std::error_code parse_token_(const std::string& string
 		, size_t&            string_begin
 		, size_t&            string_end
 		, ztext::Element*&   element
@@ -740,7 +783,7 @@ printf("%s\n", __FUNCTION__);
 
 
 
-string_begin = string_end;
+string_begin = string_end + 1;
 #if 0
 		element = nullptr;
 
@@ -796,8 +839,7 @@ printf("--- 5.0 ---\n");
 	}
 
 
-	std::error_code parse_(ztext::ZText* ztext
-		, const std::string& string
+	std::error_code parse_(const std::string& string
 		, size_t&            index_begin
 		, size_t&            index_end
 		, ztext::Element*&   element_head
@@ -816,11 +858,11 @@ printf("%s\n", __FUNCTION__);
 				&& string[index_begin + 1] == Token_Begin
 				)
 			{
-				error = parse_token_(ztext, string, index_begin, index_end, element);
+				error = parse_token_(string, index_begin, index_end, element);
 			}
 			else
 			{
-				error = parse_text_(ztext, string, index_begin, index_end, element);
+				error = parse_text_(string, index_begin, index_end, element);
 
 				if(error == ztext::Error_Parser_No_Text_Found)
 				{
@@ -840,12 +882,11 @@ printf("%s\n", __FUNCTION__);
 
 			if(element_head == nullptr)
 			{
-				ztext::element_append(ztext, element_tail, element);
 				element_head = element;
 			}
 			else
 			{
-				ztext::element_append(ztext, element_tail, element);
+				ztext::element_append(element_tail, element);
 			}
 
 			element_tail = element;
@@ -979,27 +1020,29 @@ void ztext::clear(ztext::ZText* ztext
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+// TODO Add a Variable Element
+// TODO Add a Command Element
 TEST_CASE("clear")
 {
 	ztext::ZText*   zt      = ztext::create();
 	ztext::Element* element = ztext::element_text_create("text");
-	ztext::variable_set(zt, "foo", "bar");
-	ztext::command_set(zt, "cmd", [](ztext::ZText*, ztext::Element*){return std::string();});
+	//ztext::variable_set(zt, "foo", "bar");
+	//ztext::command_set(zt, "cmd", [](ztext::ZText*, ztext::Element*){return std::string();});
 
-	ztext::element_append(zt, nullptr, element);
+	ztext::root_element_set(zt, element);
 
 	CHECK(zt                           != nullptr);
 	CHECK(element                      != nullptr);
 	CHECK(zt->root                     == element);
-	CHECK(zt->variable.contains("foo") == true);
-	CHECK(zt->command.contains("cmd")  == true);
+	//CHECK(zt->variable.contains("foo") == true);
+	//CHECK(zt->command.contains("cmd")  == true);
 
 	clear(zt);
 
 	CHECK(zt                           != nullptr);
 	CHECK(zt->root                     == nullptr);
-	CHECK(zt->variable.contains("foo") == false);
-	CHECK(zt->command.contains("cmd")  == false);
+	//CHECK(zt->variable.contains("foo") == false);
+	//CHECK(zt->command.contains("cmd")  == false);
 
 	destroy(zt);
 }
@@ -1028,7 +1071,7 @@ TEST_CASE("clear/command")
 	ztext::command_set(zt, "cmd", [](ztext::ZText*, ztext::Element*){return std::string();});
 
 	ztext::Element* element = ztext::element_text_create("text");
-	ztext::element_append(zt, nullptr, element);
+	ztext::root_element_set(zt, element);
 
 	CHECK(zt                          != nullptr);
 	CHECK(zt->command.contains("cmd") == true);
@@ -1072,7 +1115,7 @@ TEST_CASE("clear/element")
 	ztext::command_set(zt, "cmd", [](ztext::ZText*, ztext::Element*){return std::string();});
 
 	ztext::Element* element = ztext::element_text_create("text");
-	ztext::element_append(zt, nullptr, element);
+	ztext::root_element_set(zt, element);
 
 	CHECK(zt       != nullptr);
 	CHECK(element  != nullptr);
@@ -1107,10 +1150,11 @@ void ztext::clear_variables(ztext::ZText* ztext
 TEST_CASE("clear/variable")
 {
 	ztext::ZText* zt = ztext::create();
+	/* TODO Reimplement this
 	ztext::variable_set(zt, "foo", "bar");
 
 	ztext::Element* element = ztext::element_text_create("text");
-	ztext::element_append(zt, nullptr, element);
+	ztext::root_element_set(zt, element);
 
 	CHECK(zt                           != nullptr);
 	CHECK(zt->variable.contains("foo") == true);
@@ -1120,6 +1164,7 @@ TEST_CASE("clear/variable")
 
 	CHECK(zt->variable.contains("foo") == false);
 	CHECK(zt->root                     == element);
+	*/
 
 	destroy(zt);
 }
@@ -1153,7 +1198,7 @@ std::error_code ztext::parse(ztext::ZText* ztext
 	{
 		size_t index_begin = 0;
 		size_t index_end   = string.size() - 1;
-		error = parse_(ztext, string, index_begin, index_end, element);
+		error = parse_(string, index_begin, index_end, element);
 
 		if(error == ztext::Error_Parser_No_Text_Found)
 		{
@@ -1190,22 +1235,25 @@ std::error_code ztext::parse(ztext::ZText* ztext
 		}
 	}
 
-	ztext::Element* index = ztext->root;
-	if(index != nullptr)
+	if(ztext->root == nullptr)
 	{
-		index = find_tail_(index);
+		element_ztext_set_(element, ztext);
+		ztext->root = element;
 	}
-
-	error = ztext::element_append(ztext, index, element);
-
-	if(error != Error_None)
+	else
 	{
-		while(element != nullptr)
-		{
-			element = ztext::element_destroy(element);
-		}
+		ztext::Element* index = find_tail_(ztext->root);
+		error = ztext::element_append(index, element);
 
-		return error;
+		if(error != Error_None)
+		{
+			while(element != nullptr)
+			{
+				element = ztext::element_destroy(element);
+			}
+
+			return error;
+		}
 	}
 
 	return Error_None;
@@ -1427,6 +1475,7 @@ TEST_CASE("parse/variable")
 		ztext::Element* element = ztext::root_element(zt);
 
 		CHECK(element       != nullptr);
+		CHECK(element->prev == nullptr);
 		CHECK(element->type == ztext::Type::Variable);
 		CHECK(element->text == "var");
 		CHECK(ztext::element_eval(element) == "");
@@ -1525,31 +1574,21 @@ TEST_CASE("root_element")
 {
 	ztext::ZText*   zt   = ztext::create();
 	ztext::Element* foo  = ztext::element_text_create("foo");
-	ztext::Element* bar  = ztext::element_text_create("bar");
 	ztext::Element* root = ztext::root_element(zt);
 
 	CHECK(root == nullptr);
 
-	ztext::element_append(zt, nullptr, foo);
+	ztext::root_element_set(zt, foo);
 	root = ztext::root_element(zt);
 	CHECK(root == foo);
 	CHECK(ztext::element_eval(root) == "foo");
-
-	ztext::element_append(zt, nullptr, bar);
-	root = ztext::root_element(zt);
-	CHECK(root == bar);
-	CHECK(ztext::element_eval(root) == "bar");
 
 	destroy(zt);
 }
 #endif // }}}
 
-// }}}
-// }}}
-// {{{ Element
 
-std::error_code ztext::element_append(ztext::ZText* ztext
-	, ztext::Element* position
+std::error_code ztext::root_element_set(ztext::ZText* ztext
 	, ztext::Element* element
 	) noexcept
 {
@@ -1558,6 +1597,107 @@ std::error_code ztext::element_append(ztext::ZText* ztext
 		#if ZTEXT_DEBUG_ENABLED
 		ZTEXT_ERROR
 			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
+
+		return ztext::Error_Invalid_Parameter;
+	}
+
+	if(element == nullptr)
+	{
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be NULL."
+			<< '\n';
+		#endif
+
+		return ztext::Error_Invalid_Parameter;
+	}
+
+	while(ztext->root != nullptr)
+	{
+		ztext->root = ztext::element_destroy(ztext->root);
+	}
+
+	element_ztext_set_(element, ztext);
+	ztext->root = element;
+
+	return ztext::Error_None;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("root_element_set")
+{
+	ztext::ZText*   zt   = ztext::create();
+	ztext::Element* foo  = ztext::element_text_create("foo");
+	ztext::Element* bar  = ztext::element_text_create("bar");
+	ztext::Element* root = ztext::root_element(zt);
+
+	CHECK(root == nullptr);
+
+	ztext::root_element_set(zt, foo);
+	root = ztext::root_element(zt);
+	CHECK(root == foo);
+	CHECK(ztext::element_eval(root) == "foo");
+
+	ztext::root_element_set(zt, bar);
+	root = ztext::root_element(zt);
+	CHECK(root == bar);
+	CHECK(ztext::element_eval(root) == "bar");
+
+	destroy(zt);
+}
+#endif // }}}
+
+
+ztext::Element* ztext::root_element_take(ztext::ZText* ztext
+	) noexcept
+{
+	if(ztext == nullptr)
+	{
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+		#endif
+	}
+
+	Element* root = ztext->root;
+	ztext->root = nullptr;
+
+	return root;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("root_element_take")
+{
+	ztext::ZText*   zt   = ztext::create();
+	ztext::Element* foo  = ztext::element_text_create("foo");
+
+	ztext::root_element_set(zt, foo);
+
+	ztext::Element* root = ztext::root_element_take(zt);
+	CHECK(root == foo);
+	CHECK(ztext::root_element(zt) == nullptr);
+
+	destroy(zt);
+}
+#endif // }}}
+
+
+// }}}
+// }}}
+// {{{ Element
+
+std::error_code ztext::element_append(ztext::Element* position
+	, ztext::Element* element
+	) noexcept
+{
+	if(position == nullptr)
+	{
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'position' can not be NULL."
 			<< '\n';
 		#endif
 		return Error_Invalid_Parameter;
@@ -1573,8 +1713,18 @@ std::error_code ztext::element_append(ztext::ZText* ztext
 		return Error_Invalid_Parameter;
 	}
 
+	if(element->prev != nullptr)
+	{
+		#if ZTEXT_DEBUG_ENABLED
+		ZTEXT_ERROR
+			<< "Element In-Use: 'element' is already linked."
+			<< '\n';
+		#endif
+		return Error_Element_In_Use;
+	}
+
 	if(element->ztext != nullptr
-		&& element->ztext != ztext
+		&& element->ztext != position->ztext
 		)
 	{
 		#if ZTEXT_DEBUG_ENABLED
@@ -1585,21 +1735,7 @@ std::error_code ztext::element_append(ztext::ZText* ztext
 		return Error_Element_In_Use;
 	}
 
-	element->ztext = ztext;
-
-	if(position == nullptr)
-	{
-		if(ztext->root != nullptr)
-		{
-			element->next     = ztext->root;
-			ztext->root->prev = element;
-		}
-
-		ztext->root = element;
-
-		return Error_None;
-	}
-
+	element->ztext  = position->ztext;
 	element->parent = position->parent;
 	element->prev   = position;
 	element->next   = position->next;
@@ -1620,8 +1756,8 @@ TEST_CASE("element/append")
 	ztext::Element* foo  = ztext::element_text_create("foo");
 	ztext::Element* bar  = ztext::element_text_create("bar");
 
-	ztext::element_append(zt, nullptr, foo);
-	ztext::element_append(zt, foo    , bar);
+	ztext::root_element_set(zt, foo);
+	ztext::element_append(foo, bar);
 
 	CHECK(ztext::element_next(foo) == bar);
 	CHECK(ztext::element_next(bar) == nullptr);
@@ -1679,10 +1815,10 @@ TEST_CASE("element/destroy")
 	ztext::Element* test  = ztext::element_text_create("test");
 	ztext::Element* xyzzy = ztext::element_text_create("xyzzy");
 
-	ztext::element_append(zt, nullptr, foo);
-	ztext::element_append(zt, foo    , test);
-	ztext::element_append(zt, test   , bar);
-	ztext::element_append(zt, bar    , xyzzy);
+	ztext::root_element_set(zt, foo);
+	ztext::element_append(foo , test);
+	ztext::element_append(test, bar);
+	ztext::element_append(bar , xyzzy);
 
 	// foo -- test -- bar -- xyzzy
 
@@ -1767,9 +1903,9 @@ TEST_CASE("element/remove")
 	ztext::Element* bar  = ztext::element_text_create("bar");
 	ztext::Element* test = ztext::element_text_create("test");
 
-	ztext::element_append(zt, nullptr, foo);
-	ztext::element_append(zt, foo    , test);
-	ztext::element_append(zt, test   , bar);
+	ztext::root_element_set(zt, foo);
+	ztext::element_append(foo , test);
+	ztext::element_append(test, bar);
 
 	CHECK(ztext::element_next(foo) == test);
 	CHECK(ztext::element_prev(bar) == test);
@@ -1812,8 +1948,8 @@ TEST_CASE("element/next")
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
 
-	ztext::element_append(zt, nullptr, foo);
-	ztext::element_append(zt, foo    , bar);
+	ztext::root_element_set(zt, foo);
+	ztext::element_append(foo, bar);
 
 	ztext::Element* element = ztext::root_element(zt);
 	CHECK(element == foo);
@@ -1851,8 +1987,8 @@ TEST_CASE("element/prev")
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
 
-	ztext::element_append(zt, nullptr, foo);
-	ztext::element_append(zt, foo    , bar);
+	ztext::root_element_set(zt, foo);
+	ztext::element_append(foo, bar);
 
 	ztext::Element* element = bar;
 
@@ -1908,7 +2044,7 @@ TEST_CASE("element/eval")
 
 	CHECK(ztext::element_eval(text) == "");
 
-	ztext::element_append(zt, nullptr, text);
+	ztext::root_element_set(zt, text);
 	CHECK(ztext::element_eval(text) == "text");
 
 	destroy(zt);
@@ -2004,6 +2140,96 @@ ztext::Element* ztext::element_variable_create(const std::string& name
 
 	return element;
 }
+
+
+std::error_code ztext::element_variable_set(Element* element
+	, const std::string& string
+	) noexcept
+{
+	#if ZTEXT_DEBUG_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+	#endif
+
+	#if ZTEXT_DEBUG_ENABLED
+	if(element->type != ztext::Type::Variable)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' must be of type 'variable'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Variable;
+	}
+	#endif
+
+	std::error_code error = {};
+
+	error = element_variable_set(element, string, 0, string.size() - 1);
+
+	return error;
+}
+
+
+std::error_code ztext::element_variable_set(Element* element
+	, const std::string& string
+	, size_t             begin
+	, size_t             end
+	) noexcept
+{
+	#if ZTEXT_DEBUG_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+	#endif
+
+	#if ZTEXT_DEBUG_ENABLED
+	if(element->type != ztext::Type::Variable)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' must be of type 'variable'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Variable;
+	}
+	#endif
+
+	std::error_code error = {};
+	Element*        child = nullptr;
+
+	error = parse_(string, begin, end, child);
+
+	if(error != ztext::Error_None)
+	{
+		while(child != nullptr)
+		{
+			child = ztext::element_destroy(child);
+		}
+
+		return error;
+	}
+
+	Element* bad_child = element->child;
+	element->child = child;
+
+	while(bad_child != nullptr)
+	{
+		bad_child = ztext::element_destroy(bad_child);
+	}
+
+	return ztext::Error_None;
+}
+
 
 #if 0
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
@@ -2706,6 +2932,7 @@ printf("--- 4 --- %p\n", (void*)element);
 	}
 
 
+	/*
 	void variable_set(ZText* ztext
 		, const std::string name
 		, const std::string value
@@ -2723,6 +2950,7 @@ printf("--- 4 --- %p\n", (void*)element);
 
 		ztext->variable[name] = value;
 	}
+	*/
 
 
 	void variable_destroy(ZText* ztext
@@ -2749,6 +2977,7 @@ printf("--- 4 --- %p\n", (void*)element);
 
 
 
+	/*
 	Element* element_append_command(Element* element
 		, const std::string command_name
 		) noexcept
@@ -2767,8 +2996,10 @@ printf("--- 4 --- %p\n", (void*)element);
 
 		return new_element;
 	}
+	*/
 
 
+	/*
 	Element* element_append_text(Element* element
 		, const std::string           text
 		) noexcept
@@ -2787,8 +3018,10 @@ printf("--- 4 --- %p\n", (void*)element);
 
 		return new_element;
 	}
+	*/
 
 
+	/*
 	Element* element_append_variable(Element* element
 		, const std::string               variable_name
 		) noexcept
@@ -2807,6 +3040,7 @@ printf("--- 4 --- %p\n", (void*)element);
 
 		return new_element;
 	}
+	*/
 
 
 	std::string eval_command(Element* element

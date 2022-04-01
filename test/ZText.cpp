@@ -12,6 +12,7 @@ g++ -std=c++20 -Wall -Werror -o ZText ZText.cpp && ./ZText
 #include <sstream>
 
 
+#if 0
 void manual_tests()
 {
 	printf("ztext::ZText Size: %ld\n", sizeof(ztext::ZText));
@@ -123,6 +124,7 @@ void manual_tests()
 
 	ztext::destroy(ztext);
 }
+#endif
 
 
 int main(int argc, char** argv)
