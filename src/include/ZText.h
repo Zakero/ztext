@@ -130,7 +130,7 @@ namespace ztext
 	[[]]          void            clear_commands(ZText*) noexcept;
 	[[]]          void            clear_elements(ZText*) noexcept;
 	[[]]          void            clear_variables(ZText*) noexcept;
-	[[]]          std::error_code parse(ZText*, const std::string&) noexcept;
+	[[]]          std::error_code parse(const std::string&, Element*&) noexcept;
 	[[nodiscard]] Element*        root_element(const ZText*) noexcept;
 	[[]]          std::error_code root_element_set(ZText*, Element*) noexcept;
 	[[nodiscard]] Element*        root_element_take(ZText*) noexcept;
@@ -381,7 +381,33 @@ print(element, true);
 	}
 
 	// }}}
-	// {{{ Element Navigation
+	// {{{ Element Utilities
+
+	inline void element_init_(ztext::Element* element
+		) noexcept
+	{
+		element->ztext    = nullptr;
+		element->next     = nullptr;
+		element->prev     = nullptr;
+		element->child    = nullptr;
+		element->parent   = nullptr;
+		element->property = {};
+		element->text     = {};
+		element->type     = ztext::Type::Text;
+	}
+
+	/*
+	ztext::Element* find_head_(ztext::Element* element
+		) noexcept
+	{
+		while(element->prev != nullptr)
+		{
+			element = element->prev;
+		}
+
+		return element;
+	}
+
 
 	ztext::Element* find_tail_(ztext::Element* element
 		) noexcept
@@ -393,6 +419,7 @@ print(element, true);
 
 		return element;
 	}
+	*/
 
 	// }}}
 	// {{{ Element Utilities
@@ -572,18 +599,18 @@ print(element, true);
 
 
 	std::error_code parse_text_(const std::string& string
-		, size_t&            string_begin
-		, size_t&            string_end
-		, ztext::Element*&   element
+		, size_t&          begin
+		, size_t&          end
+		, ztext::Element*& element
 		) noexcept
 	{
-		size_t index = string_begin;
+		size_t index = begin;
 
-		while(index <= string_end)
+		while(index <= end)
 		{
 			if(string[index] == Token_Begin)
 			{
-				if((index + 1) <= string_end
+				if((index + 1) <= end
 					&& string[index - 1] != Token_Escape
 					&& string[index + 1] == Token_Begin
 					)
@@ -595,12 +622,12 @@ print(element, true);
 
 			if(string[index] == Token_End)
 			{
-				if((index + 1) <= string_end
+				if((index + 1) <= end
 					&& string[index - 1] != Token_Escape
 					&& string[index + 1] == Token_End
 					)
 				{
-					string_begin = index;
+					begin = index;
 					return ztext::Error_Parser_Token_Begin_Marker_Missing;
 				}
 			}
@@ -608,11 +635,11 @@ print(element, true);
 			index++;
 		}
 
-		std::string text = string_substr_(string, string_begin, index);
+		std::string text = string_substr_(string, begin, index);
 		text = string_trim_(text);
 		text = string_clean_whitespace_(text);
 
-		string_begin = index + 1;
+		begin = index + 1;
 
 		if(text.empty() == true)
 		{
@@ -846,6 +873,7 @@ printf("--- 5.0 ---\n");
 		) noexcept
 	{
 printf("%s\n", __FUNCTION__);
+		element_head = nullptr;
 		ztext::Element* element_tail = nullptr;
 
 		while(index_begin <= index_end)
@@ -1173,22 +1201,11 @@ TEST_CASE("clear/variable")
 // }}}
 // {{{ Utility: parse
 
-std::error_code ztext::parse(ztext::ZText* ztext
-	, const std::string& string
+std::error_code ztext::parse(const std::string& string
+	, ztext::Element*& element
 	) noexcept
 {
-	if(ztext == nullptr)
-	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
-			<< "Invalid Parameter: 'ztext' can not be NULL."
-			<< '\n';
-		#endif
-		return Error_Invalid_Parameter;
-	}
-
-	ztext::Element* element = nullptr;
-	std::error_code error   = {};
+	std::error_code error = {};
 
 	if(string.empty() == true)
 	{
@@ -1235,49 +1252,24 @@ std::error_code ztext::parse(ztext::ZText* ztext
 		}
 	}
 
-	if(ztext->root == nullptr)
-	{
-		element_ztext_set_(element, ztext);
-		ztext->root = element;
-	}
-	else
-	{
-		ztext::Element* index = find_tail_(ztext->root);
-		error = ztext::element_append(index, element);
-
-		if(error != Error_None)
-		{
-			while(element != nullptr)
-			{
-				element = ztext::element_destroy(element);
-			}
-
-			return error;
-		}
-	}
-
 	return Error_None;
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/text
 TEST_CASE("parse/text")
 {
-	ztext::ZText*   zt    = ztext::create();
-	std::error_code error = {};
+	ztext::ZText*   zt      = ztext::create();
+	ztext::Element* element = nullptr;
+	std::error_code error   = {};
 
 	SUBCASE("Invaild Data")
 	{
-		error = ztext::parse(nullptr, "foo");
-		CHECK(error == ztext::Error_Invalid_Parameter);
-
-		error = ztext::parse(zt, "foo }} bar");
+		error = ztext::parse("foo }} bar", element);
 		CHECK(error == ztext::Error_Parser_Token_Begin_Marker_Missing);
 	}
 
 	SUBCASE("Pure White-Space")
 	{
-		ztext::Element* element = nullptr;
-
 		const std::string empty    = "";
 		const std::string newlines = "\n\n\n";
 		const std::string spaces   = "   ";
@@ -1286,41 +1278,41 @@ TEST_CASE("parse/text")
 		// -------------------------------------- //
 
 		ztext::clear(zt);
-		error = ztext::parse(zt, empty);
-		CHECK(error == ztext::Error_None);
-		
-		element = ztext::root_element(zt);
+		error = ztext::parse(empty, element);
+		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
+		
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "");
 
 		// -------------------------------------- //
 
 		ztext::clear(zt);
-		error = ztext::parse(zt, newlines);
-		CHECK(error == ztext::Error_None);
-		
-		element = ztext::root_element(zt);
+		error = ztext::parse(newlines, element);
+		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
+		
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "");
 
 		// -------------------------------------- //
 
 		ztext::clear(zt);
-		error = ztext::parse(zt, spaces);
-		CHECK(error == ztext::Error_None);
-		
-		element = ztext::root_element(zt);
+		error = ztext::parse(spaces, element);
+		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
+		
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "");
 
 		// -------------------------------------- //
 
 		ztext::clear(zt);
-		error = ztext::parse(zt, tabs);
-		CHECK(error == ztext::Error_None);
-		
-		element = ztext::root_element(zt);
+		error = ztext::parse(tabs, element);
+		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
+		
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "");
 	}
 
@@ -1328,10 +1320,10 @@ TEST_CASE("parse/text")
 	{
 		std::string text = "X";
 
-		error = ztext::parse(zt, text);
+		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == text);
 	}
 
@@ -1339,10 +1331,10 @@ TEST_CASE("parse/text")
 	{
 		std::string text = "X";
 
-		error = ztext::parse(zt, " 	 " + text);
+		error = ztext::parse(" 	 " + text, element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == text);
 	}
 
@@ -1350,10 +1342,10 @@ TEST_CASE("parse/text")
 	{
 		std::string text = "X";
 
-		error = ztext::parse(zt, text + " 	 	");
+		error = ztext::parse(text + " 	 	", element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == text);
 	}
 
@@ -1361,10 +1353,10 @@ TEST_CASE("parse/text")
 	{
 		std::string text = "X";
 
-		error = ztext::parse(zt, "	" + text + "       ");
+		error = ztext::parse("	" + text + "       ", element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == text);
 	}
 
@@ -1372,10 +1364,10 @@ TEST_CASE("parse/text")
 	{
 		std::string text = "X	Y  Z";
 
-		error = ztext::parse(zt, text);
+		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "X Y Z");
 	}
 
@@ -1387,10 +1379,10 @@ TEST_CASE("parse/text")
 			Z            \
 			";
 
-		error = ztext::parse(zt, text);
+		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "X Y Z");
 	}
 
@@ -1398,10 +1390,10 @@ TEST_CASE("parse/text")
 	{
 		std::string text = "foo {{token$}}";
 
-		error = ztext::parse(zt, text);
+		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "foo");
 	}
 
@@ -1409,10 +1401,10 @@ TEST_CASE("parse/text")
 	{
 		std::string text = "\\{{token\\}}";
 
-		error = ztext::parse(zt, text);
+		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "{{token}}");
 	}
 
@@ -1420,10 +1412,10 @@ TEST_CASE("parse/text")
 	{
 		std::string text = "foo \\{{token\\}} bar";
 
-		error = ztext::parse(zt, text);
+		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
-		ztext::Element* element = ztext::root_element(zt);
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "foo {{token}} bar");
 	}
 
@@ -1433,108 +1425,115 @@ TEST_CASE("parse/text")
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/variable
 TEST_CASE("parse/variable")
 {
-	ztext::ZText*   zt    = ztext::create();
-	std::error_code error = {};
+	ztext::ZText*   zt      = ztext::create();
+	ztext::Element* element = nullptr;
+	std::error_code error   = {};
 
 	SUBCASE("Invaild Data")
 	{
-		error = ztext::parse(zt, "{{");
+		error = ztext::parse("{{", element);
 		CHECK(error == ztext::Error_Parser_Token_End_Marker_Missing);
 
 		// -------------------------------------- //
 
-		error = ztext::parse(zt, "{{var$");
+		error = ztext::parse("{{var$", element);
 		CHECK(error == ztext::Error_Parser_Token_End_Marker_Missing);
 
 		// -------------------------------------- //
 
-		error = ztext::parse(zt, "{{var$\\}}");
+		error = ztext::parse("{{var$\\}}", element);
 		CHECK(error == ztext::Error_Parser_Token_End_Marker_Missing);
 
 		// -------------------------------------- //
 
-		error = ztext::parse(zt, "{{}}");
+		error = ztext::parse("{{}}", element);
 		CHECK(error == ztext::Error_Parser_Token_Name_Missing);
 
 		// -------------------------------------- //
 
-		error = ztext::parse(zt, "{{$}}");
+		error = ztext::parse("{{$}}", element);
 		CHECK(error == ztext::Error_Parser_Token_Name_Missing);
 
 		// -------------------------------------- //
 
-		error = ztext::parse(zt, "{{*$}}");
+		error = ztext::parse("{{*$}}", element);
 		CHECK(error == ztext::Error_Parser_Token_Name_Invalid);
 	}
 
 	SUBCASE("Variable")
 	{
-		error = ztext::parse(zt, "{{var$}}");
-		CHECK(error == ztext::Error_None);
+		ztext::clear(zt);
 
-		ztext::Element* element = ztext::root_element(zt);
+		error = ztext::parse("{{var$}}", element);
+		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
 		CHECK(element->prev == nullptr);
 		CHECK(element->type == ztext::Type::Variable);
 		CHECK(element->text == "var");
+
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "");
 	}
 
 	SUBCASE("Variable With White-Space")
 	{
-		error = ztext::parse(zt, " {{ var $ }} ");
-		CHECK(error == ztext::Error_None);
+		ztext::clear(zt);
 
-		ztext::Element* element = ztext::root_element(zt);
+		error = ztext::parse(" {{ var $ }} ", element);
+		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
 		CHECK(element->text == "var");
+
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "");
 	}
 
 	SUBCASE("Variable With Data")
 	{
-printf("--------------------------------------------------------------------------------\n");
-		error = ztext::parse(zt, "{{var$=foo}}");
-		CHECK(error == ztext::Error_None);
+		ztext::clear(zt);
 
-		ztext::Element* element = ztext::root_element(zt);
+printf("--------------------------------------------------------------------------------\n");
+		error = ztext::parse("{{var$=foo}}", element);
+		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
 		CHECK(element->text == "var");
+
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "foo");
 	}
 
 	SUBCASE("Variable With Data and White-Space")
 	{
 #if 0
-		error = ztext::parse(zt, " {{ var $ = foo }} ");
+		error = ztext::parse(" {{ var $ = foo }} ", element);
 		CHECK(error == ztext::Error_None);
-
-		ztext::Element* element = ztext::root_element(zt);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
 		CHECK(element->text == "var");
+
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "foo");
 	}
 
 	SUBCASE("Variable With Cleaned Data")
 	{
-		error = ztext::parse(zt, " {{ var$ = \
+		error = ztext::parse(" {{ var$ = \
 			foo	\
 			bar	\
-			}} ");
+			}} ", element);
 		CHECK(error == ztext::Error_None);
-
-		ztext::Element* element = ztext::root_element(zt);
 
 		CHECK(element       != nullptr);
 		CHECK(element->type == ztext::Type::Variable);
 		CHECK(element->text == "var");
+
+		ztext::root_element_set(zt, element);
 		CHECK(ztext::element_eval(element) == "foo bar");
 	}
 
@@ -1791,14 +1790,7 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 
 	ztext::Element* retval = element->next;
 
-	element->ztext    = nullptr;
-	element->next     = nullptr;
-	element->prev     = nullptr;
-	element->child    = nullptr;
-	element->parent   = nullptr;
-	element->property = {};
-	element->text     = {};
-	element->type     = Type::Text;
+	element_init_(element);
 
 	delete element;
 	element = nullptr;
@@ -2293,6 +2285,21 @@ void print_(const ztext::Element* element
 	, int        level
 	) noexcept
 {
+	if(element == nullptr)
+	{
+		printf("%*selement: 0x%08lx <- 0x%08lx -> 0x%08lx [0x%08lx] %s (%s)\n"
+			, (level * 3)
+			, ""
+			, (uint64_t)0
+			, (uint64_t)0
+			, (uint64_t)0
+			, (uint64_t)0
+			, ""
+			, ""
+			);
+		return;
+	}
+
 	printf("%*selement: 0x%08lx <- 0x%08lx -> 0x%08lx [0x%08lx] %s (%s)\n"
 		, (level * 3)
 		, ""
