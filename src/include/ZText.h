@@ -21,6 +21,26 @@
  * TODO: index = string_rskip_whitespace_(string, index)\n"
  * TODO: element = convent_token_to_variable_(token, string)\n"
  *
+ * Text
+ * blah blah blah
+ *
+ * Variable
+ * Use: {{foo$}}
+ * Set: {{foo$ the value}}
+ *
+ * Command
+ * No Param: {{foo}}
+ * No Param: {{foo the content}}
+ * W/ Param: {{foo(a = thing 1, b = thing 2)}}
+ * W/ Param: {{foo(a = thing 1, b = thing 2) the content}}
+ *
+ * Array
+ * Use: {{foo@1}}
+ * Set: {{foo@ [ thing 1, thing 2 ] }}
+ *
+ * Map
+ * Use: {{foo#abc}}
+ * Set: {{foo# ( abc = thing 1, xyz = thing 2 ) }}
  *
  * -------------------------------------------------------------------------
  * Implement ztext::eval(ZText*, Element*, bool = true)
