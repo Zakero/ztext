@@ -1,3 +1,36 @@
+{{type$ example}}
+{{style$
+	(	bold="color white"
+	,	normal="color ltgray"
+	)
+}}
+
+This is an {{type$}} of the usage. It is currently {{status}}.
+
+{{section_counter$ 0}}
+{{section
+	(	title = Intro
+	,	num   = {{increment section_counter}}
+	)
+	In this {{style$bold Intro}} section, the an overview is provided.
+}}
+
+{{variable$ the value}}
+{{variable$}}
+{{array$ [a,list,of,values]}}
+{{array$0}}
+{{map$ (key=value,foo=bar)}}
+{{map$key}}
+
+{{$variable}}
+{{$variable the value}}
+{{@array}}
+{{@array a,list,of,values}}
+{{#map}}
+
+
+ztext
+zscript
 {{document
 	( title = ZText
 	, date  = {{date}}
