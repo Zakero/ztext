@@ -127,7 +127,7 @@ namespace ztext
 	[[]]          void            clear_variables(ZText*) noexcept;
 
 	// --- Evaluation --- //
-	[[nodiscard]] std::string     eval(ZText*, Element*) noexcept;
+	[[nodiscard]] std::string     eval(ZText*, Element*, bool = true) noexcept;
 
 	// --- Parse --- //
 	[[]]          std::error_code parse(const std::string&, Element*&) noexcept;
@@ -164,21 +164,21 @@ namespace ztext
 	//[[]]          Element*        element_append_text(Element*, const std::string) noexcept;
 	//[[]]          Element*        element_append_variable(Element*, const std::string) noexcept;
 
-	[[]]          void            command_set(ZText*, const std::string, const ztext::CommandLambda) noexcept;
-	[[]]          void            command_destroy(ZText*, const std::string) noexcept;
-	[[nodiscard]] Element*        command_content(Element*) noexcept;
-	[[]]          void            command_content_set(Element*, Element*) noexcept;
-	[[nodiscard]] MapStringString command_property(Element*) noexcept;
-	[[]]          void            command_property_set(Element*, const std::string, const std::string) noexcept;
+	//[[]]          void            command_set(ZText*, const std::string, const ztext::CommandLambda) noexcept;
+	//[[]]          void            command_destroy(ZText*, const std::string) noexcept;
+	//[[nodiscard]] Element*        command_content(Element*) noexcept;
+	//[[]]          void            command_content_set(Element*, Element*) noexcept;
+	//[[nodiscard]] MapStringString command_property(Element*) noexcept;
+	//[[]]          void            command_property_set(Element*, const std::string, const std::string) noexcept;
 
 	//[[]]          std::error_code variable_set(ZText*, const std::string, const std::string) noexcept;
-	[[]]          void            variable_destroy(ZText*, const std::string) noexcept;
+	//[[]]          void            variable_destroy(ZText*, const std::string) noexcept;
 
-	#ifdef ZTEXT_DEBUG_ENABLED
-	[[]]          void            debug_element(Element*) noexcept;
-	[[]]          void            debug_command(ZText*) noexcept;
-	[[]]          void            debug_variable(ZText*) noexcept;
-	#endif
+	//#ifdef ZTEXT_DEBUG_ENABLED
+	//[[]]          void            debug_element(Element*) noexcept;
+	//[[]]          void            debug_command(ZText*) noexcept;
+	//[[]]          void            debug_variable(ZText*) noexcept;
+	//#endif
 }
 
 #ifdef ZTEXT_IMPLEMENTATION // {{{
@@ -1081,6 +1081,7 @@ TEST_CASE("clear/variable")
 
 std::string ztext::eval(ztext::ZText* ztext
 	, ztext::Element* element
+	, bool            to_end
 	) noexcept
 {
 	#if ZTEXT_DEBUG_ENABLED
@@ -1090,9 +1091,7 @@ std::string ztext::eval(ztext::ZText* ztext
 			<< "Invalid Parameter: 'ztext' can not be null"
 			<< '\n';
 	}
-	#endif
 
-	#if ZTEXT_DEBUG_ENABLED
 	if(element == nullptr)
 	{
 		ZTEXT_ERROR
@@ -1101,23 +1100,65 @@ std::string ztext::eval(ztext::ZText* ztext
 	}
 	#endif
 
-	switch(element->type)
+	std::string retval;
+
+	while(true)
 	{
-		case ztext::Type::Text:     return string_clean_escapes_(element->text);
-		case ztext::Type::Variable: return element_eval_variable_(ztext, element);
-		case ztext::Type::Command:  ZTEXT_ERROR << "Not Implemented\n"; break;//return eval_command(element);
+		switch(element->type)
+		{
+			case ztext::Type::Text:
+				retval += string_clean_escapes_(element->text);
+				break;
+
+			case ztext::Type::Variable:
+				retval += element_eval_variable_(ztext, element);
+				break;
+
+			case ztext::Type::Command:
+				ZTEXT_ERROR << "Not Implemented\n";
+				//retval += element_eval_command_(ztext, element);
+				break;
+		}
+
+		if(to_end == false
+			|| element->next == nullptr
+			)
+		{
+			break;
+		}
+
+		element = element->next;
 	}
 
-	return {};
+	return retval;
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("eval")
+TEST_CASE("eval/text")
 {
-	ztext::ZText*   zt   = ztext::create();
-	ztext::Element* text = ztext::element_text_create("text");
+	ztext::ZText* zt = ztext::create();
 
-	CHECK(ztext::eval(zt, text) == "text");
+	SUBCASE("single")
+	{
+		ztext::Element* text = ztext::element_text_create("text");
+		CHECK(ztext::eval(zt, text, false) == "text");
+		ztext::element_destroy(text);
+	}
+
+	SUBCASE("many")
+	{
+		ztext::Element* hello = ztext::element_text_create("Hello");
+		ztext::Element* comma = ztext::element_text_create(", ");
+		ztext::Element* world = ztext::element_text_create("World");
+
+		ztext::element_append(hello, comma);
+		ztext::element_append(comma, world);
+		CHECK(ztext::eval(zt, hello, true) == "Hello, World");
+
+		ztext::element_destroy(hello);
+		ztext::element_destroy(comma);
+		ztext::element_destroy(world);
+	}
 
 	destroy(zt);
 }
