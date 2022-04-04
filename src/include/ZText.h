@@ -310,7 +310,13 @@ namespace
 
 	constexpr char Identifier_Command  = '(';
 	constexpr char Identifier_Variable = '$';
-	constexpr char Assignment          = '=';
+	constexpr char Identifier_Array    = '@';
+	constexpr char Identifier_Map      = '#';
+
+	constexpr char Dataset_Array_Begin = '[';
+	constexpr char Dataset_Array_End   = ']';
+	constexpr char Dataset_Map_Begin   = '(';
+	constexpr char Dataset_Map_End     = ')';
 
 	// }}}
 	// {{{ Datatypes
@@ -711,14 +717,6 @@ printf("%lu %c\n", index, string[index]);
 			return ztext::Error_None;
 		}
 
-		token.assignment = index;
-
-		if(string[index] != Assignment)
-		{
-			return ztext::Error_Parser_Variable_Content_Invalid;
-		}
-
-		index = string_skip_whitespace_(string, index + 1);
 		token.content_begin = index;
 		token.content_end   = token.end - 2;
 
@@ -739,18 +737,32 @@ printf("%s\n", __FUNCTION__);
 		std::error_code error       = {};
 		size_t          index_begin = string_begin + 2;
 		size_t          index_end   = index_begin;
+		size_t          depth       = 0;
 
-		//size_t nested_count = 0;
 		while(index_end <= string_end)
 		{
-			if((index_end + 1) <= string_end
-				&& string[index_end - 1] != Token_Escape
-				&& string[index_end    ] == Token_End
-				&& string[index_end + 1] == Token_End
-				)
+			if(string[index_end] == Token_Begin)
 			{
-				index_end++;
-				break;
+				if((index_end + 1) <= string_end
+					&& string[index_end - 1] != Token_Escape
+					&& string[index_end + 1] == Token_Begin
+					)
+				{
+					depth++;
+				}
+			}
+
+			if(string[index_end] == Token_End)
+			{
+				if((index_end + 1) <= string_end
+					&& string[index_end - 1] != Token_Escape
+					&& string[index_end + 1] == Token_End
+					&& depth == 0
+					)
+				{
+					index_end++;
+					break;
+				}
 			}
 
 			index_end++;
@@ -789,7 +801,7 @@ printf("%s\n", __FUNCTION__);
 				string_substr_(string, token.name_begin, token.name_end)
 				);
 
-			if(token.assignment != 0)
+			if(token.content_begin != 0)
 			{
 				error = ztext::element_variable_set(element
 					, string_substr_(string
@@ -1447,6 +1459,8 @@ TEST_CASE("parse/variable")
 		CHECK(element->text == "var");
 
 		CHECK(ztext::eval(zt, element) == "");
+
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Variable With White-Space")
@@ -1461,14 +1475,15 @@ TEST_CASE("parse/variable")
 		CHECK(element->text == "var");
 
 		CHECK(ztext::eval(zt, element) == "");
+
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Variable With Data")
 	{
 		ztext::clear(zt);
 
-printf("--------------------------------------------------------------------------------\n");
-		error = ztext::parse("{{var$=foo}}", element);
+		error = ztext::parse("{{var$foo}}", element);
 		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
@@ -1476,12 +1491,13 @@ printf("------------------------------------------------------------------------
 		CHECK(element->text == "var");
 
 		CHECK(ztext::eval(zt, element) == "foo");
+
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Variable With Data and White-Space")
 	{
-#if 0
-		error = ztext::parse(" {{ var $ = foo }} ", element);
+		error = ztext::parse(" {{ var $ foo }} ", element);
 		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
@@ -1489,13 +1505,16 @@ printf("------------------------------------------------------------------------
 		CHECK(element->text == "var");
 
 		CHECK(ztext::eval(zt, element) == "foo");
+
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Variable With Cleaned Data")
 	{
-		error = ztext::parse(" {{ var$ = \
-			foo	\
-			bar	\
+		error = ztext::parse(" {{ var$  \
+			foo		\
+			\\{{123\\}}	\
+			bar		\
 			}} ", element);
 		CHECK(error == ztext::Error_None);
 
@@ -1503,16 +1522,39 @@ printf("------------------------------------------------------------------------
 		CHECK(element->type == ztext::Type::Variable);
 		CHECK(element->text == "var");
 
-		CHECK(ztext::eval(zt, element) == "foo bar");
+		CHECK(ztext::eval(zt, element) == "foo {{123}} bar");
+
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Variable With Nested Variables")
 	{
+		ztext::Element* var = nullptr;
+		error = ztext::parse("{{var$ abc}}", var);
+		CHECK(error == ztext::Error_None);
+
+		CHECK(var       != nullptr);
+		CHECK(var->type == ztext::Type::Variable);
+		CHECK(var->text == "var");
+
+printf("--------------------------------------------------------------------------------\n");
+		error = ztext::parse("{{foo$ {{var$}}}}", element);
+		CHECK(error == ztext::Error_None);
+
+		CHECK(element       != nullptr);
+		CHECK(element->type == ztext::Type::Variable);
+		CHECK(element->text == "foo");
+
+		ztext::element_append(var, element);
+
+		CHECK(ztext::eval(zt, var) == "abc abc");
+
+		ztext::element_destroy(var);
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Variable With Nested Variables Recursive")
 	{
-#endif
 	}
 
 	destroy(zt);
