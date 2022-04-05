@@ -102,6 +102,7 @@
 	X(Error_Parser_Token_Identifier_Invalid    , 10 , "The Parser found an invalid token identifier" ) \
 	X(Error_Parser_Variable_Content_Invalid    , 11 , "The Parser found an invalid content used with a variable" ) \
 	X(Error_Parser_Token_Begin_Marker_Missing  , 12 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
+	X(Error_Parser_Recursive_Dependencies      , 13 , "The Parser has detected a recursive dependeny of data" )\
 
 
 // }}}
@@ -1588,7 +1589,6 @@ TEST_CASE("parse/variable")
 		ztext::element_destroy(foo);
 		ztext::element_destroy(bar);
 
-printf("--------------------------------------------------------------------------------\n");
 		error = ztext::parse("{{var$ xyz}}-{{foo$!{{var$}}!}}-{{bar$?{{foo$}}?}}", var);
 		CHECK(ztext::eval(zt, var) == "xyz-!xyz!-?!xyz!?");
 		ztext::element_destroy_all(var);
@@ -1596,6 +1596,13 @@ printf("------------------------------------------------------------------------
 
 	SUBCASE("Variable With Nested Variables Recursive")
 	{
+		ztext::Element* var = nullptr;
+		error = ztext::parse("{{foo$ {{bar$ {{foo$}} }} }}", var);
+		CHECK(error == ztext::Error_None);
+
+		CHECK(ztext::eval(zt, var) == "");
+
+		ztext::element_destroy_all(var);
 	}
 
 	destroy(zt);
