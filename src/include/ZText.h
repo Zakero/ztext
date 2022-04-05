@@ -43,9 +43,8 @@
  * Set: {{foo# ( abc = thing 1, xyz = thing 2 ) }}
  *
  * -------------------------------------------------------------------------
- * Implement ztext::eval(ZText*, Element*, bool = true)
- * - Remove ZText* from Element objects
- * add element_eval_variable()
+ *
+ * Bug: ztext::parse("{{var$ xyz}}-{{foo${{var$}}-{{bar${{foo$}} }}", var);
  * Test - Subcase - Variable With Data
  */
 
@@ -631,6 +630,13 @@ printf("%s\n", __FUNCTION__);
 			}
 
 			element_tail = element;
+printf("Element Chain\n");
+ztext::Element* e = element_head;
+while(e != nullptr)
+{
+	print(e, true);
+	e = e->next;
+}
 		}
 
 		return ztext::Error_None;
@@ -645,6 +651,8 @@ printf("%s\n", __FUNCTION__);
 		, ztext::Element*& element
 		) noexcept
 	{
+printf("%s\n", __FUNCTION__);
+//printf("%s\n", string.c_str());
 		size_t index = begin;
 
 		while(index <= end)
@@ -688,6 +696,7 @@ printf("%s\n", __FUNCTION__);
 		}
 
 		element = ztext::element_text_create(text);
+print(element, true);
 
 		return ztext::Error_None;
 	}
@@ -773,6 +782,7 @@ printf("%s\n", __FUNCTION__);
 			element = ztext::element_variable_create(
 				string_substr_(string, token.name_begin, token.name_end)
 				);
+print(element, true);
 
 			if(token.content_begin != 0)
 			{
@@ -1297,6 +1307,7 @@ TEST_CASE("parse/text")
 		CHECK(element != nullptr);
 		
 		CHECK(ztext::eval(zt, element) == "");
+		ztext::element_destroy(element);
 
 		// -------------------------------------- //
 
@@ -1306,6 +1317,7 @@ TEST_CASE("parse/text")
 		CHECK(element != nullptr);
 		
 		CHECK(ztext::eval(zt, element) == "");
+		ztext::element_destroy(element);
 
 		// -------------------------------------- //
 
@@ -1315,6 +1327,7 @@ TEST_CASE("parse/text")
 		CHECK(element != nullptr);
 		
 		CHECK(ztext::eval(zt, element) == "");
+		ztext::element_destroy(element);
 
 		// -------------------------------------- //
 
@@ -1324,6 +1337,7 @@ TEST_CASE("parse/text")
 		CHECK(element != nullptr);
 		
 		CHECK(ztext::eval(zt, element) == "");
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Simple Text")
@@ -1334,6 +1348,7 @@ TEST_CASE("parse/text")
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == text);
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Leading White-Space")
@@ -1344,6 +1359,7 @@ TEST_CASE("parse/text")
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == text);
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Trailing White-Space")
@@ -1354,6 +1370,7 @@ TEST_CASE("parse/text")
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == text);
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Leading and Trailing White-Space")
@@ -1364,6 +1381,7 @@ TEST_CASE("parse/text")
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == text);
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Clean White-Space")
@@ -1374,6 +1392,7 @@ TEST_CASE("parse/text")
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == "X Y Z");
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Multi-Line")
@@ -1388,16 +1407,22 @@ TEST_CASE("parse/text")
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == "X Y Z");
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Before Token")
 	{
-		std::string text = "foo {{token$}}";
+		std::string text = "foo {{bar$}}";
 
 		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == "foo");
+
+		while(element != nullptr)
+		{
+			element = ztext::element_destroy(element);
+		}
 	}
 
 	SUBCASE("Escaped Token")
@@ -1408,6 +1433,7 @@ TEST_CASE("parse/text")
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == "{{token}}");
+		ztext::element_destroy(element);
 	}
 
 	SUBCASE("Embedded Escaped Token")
@@ -1418,6 +1444,7 @@ TEST_CASE("parse/text")
 		CHECK(error == ztext::Error_None);
 		
 		CHECK(ztext::eval(zt, element) == "foo {{token}} bar");
+		ztext::element_destroy(element);
 	}
 
 	destroy(zt);
@@ -1544,7 +1571,6 @@ TEST_CASE("parse/variable")
 
 	SUBCASE("Variable With Nested Variables")
 	{
-printf("--------------------------------------------------------------------------------\n");
 		ztext::Element* var = nullptr;
 		ztext::Element* foo = nullptr;
 		ztext::Element* bar = nullptr;
@@ -1562,6 +1588,13 @@ printf("------------------------------------------------------------------------
 		ztext::element_destroy(var);
 		ztext::element_destroy(foo);
 		ztext::element_destroy(bar);
+
+printf("--------------------------------------------------------------------------------\n");
+/*
+		error = ztext::parse("{{var$ xyz}}-{{foo${{var$}}-{{bar${{foo$}} }}", var);
+		CHECK(ztext::eval(zt, var) == "xyz-xyz-xyz");
+		ztext::element_destroy(var);
+*/
 	}
 
 	SUBCASE("Variable With Nested Variables Recursive")
@@ -1660,6 +1693,11 @@ TEST_CASE("element/append")
 	CHECK(ztext::element_prev(xyz) == abc);
 	CHECK(ztext::element_prev(abc) == foo);
 	CHECK(ztext::element_prev(foo) == nullptr);
+
+	ztext::element_destroy(foo);
+	ztext::element_destroy(bar);
+	ztext::element_destroy(abc);
+	ztext::element_destroy(xyz);
 }
 #endif // }}}
 
@@ -1749,6 +1787,11 @@ TEST_CASE("element/insert")
 	CHECK(ztext::element_prev(xyz) == abc);
 	CHECK(ztext::element_prev(abc) == foo);
 	CHECK(ztext::element_prev(foo) == nullptr);
+
+	ztext::element_destroy(foo);
+	ztext::element_destroy(bar);
+	ztext::element_destroy(abc);
+	ztext::element_destroy(xyz);
 }
 #endif // }}}
 
@@ -1765,6 +1808,8 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 	}
 	#endif
 
+	ztext::Element* retval = element->next;
+
 	std::stack<ztext::Element*> stack = {};
 
 	element_remove(element);
@@ -1773,8 +1818,6 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 	{
 		stack.push(element->child);
 	}
-
-	ztext::Element* retval = element->next;
 
 	element_init_(element);
 	delete element;
