@@ -44,7 +44,8 @@
  *
  * -------------------------------------------------------------------------
  *
- * Test - Subcase - Variable With Data
+ * Implement "Element: Variable" Tests
+ * Implement clearing the ZText variable cache
  */
 
 
