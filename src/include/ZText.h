@@ -298,12 +298,10 @@ namespace ztext
 }
 
 // }}}
-// {{{ Private
+// {{{ Private: Constants
 
 namespace
 {
-	// {{{ Constants
-
 	constexpr char Token_Begin  = '{';
 	constexpr char Token_End    = '}';
 	constexpr char Token_Escape = '\\';
@@ -317,10 +315,13 @@ namespace
 	constexpr char Dataset_Array_End   = ']';
 	constexpr char Dataset_Map_Begin   = '(';
 	constexpr char Dataset_Map_End     = ')';
+}
 
-	// }}}
-	// {{{ Datatypes
+// }}}
+// {{{ Private: Datatypes
 
+namespace
+{
 	struct Token
 	{
 		size_t begin          = 0;
@@ -335,11 +336,13 @@ namespace
 		size_t assignment     = 0;
 		bool   is_valid       = false;
 	};
+}
 
+// }}}
+// {{{ Private: Debugging
 
-	// }}}
-	// {{{ Debug
-
+namespace
+{
 	[[maybe_unused]]
 	void debug(const Token& token
 		, const std::string_view& string
@@ -372,10 +375,13 @@ namespace
 			, (token.content_begin >= token.content_end || token.content_begin >= len || token.content_end >= len) ? "" : std::string(string.substr(token.content_begin, (token.content_end - token.content_begin + 1))).c_str()
 			);
 	}
+}
 
-	// }}}
-	// {{{ Element Evaluation
+// }}}
+// {{{ Private: Evaluation: Variable
 
+namespace
+{
 	std::string element_eval_variable_(ztext::ZText* ztext
 		, const ztext::Element* element
 		) noexcept
@@ -399,10 +405,13 @@ print(element, true);
 
 		return retval;
 	}
+}
 
-	// }}}
-	// {{{ Element Utilities
+// }}}
+// {{{ Private: Element Utilities
 
+namespace
+{
 	inline void element_init_(ztext::Element* element
 		) noexcept
 	{
@@ -414,54 +423,13 @@ print(element, true);
 		element->text     = {};
 		element->type     = ztext::Type::Text;
 	}
+}
 
+// }}}
+// {{{ Private: String Utils
 
-	/*
-	void element_ztext_set_(ztext::Element* element_head
-		, ztext::ZText* ztext
-		) noexcept
-	{
-		std::stack<ztext::Element*> stack = {};
-		stack.push(element_head);
-
-		while(stack.empty() == false)
-		{
-			ztext::Element* element = stack.top();
-			stack.pop();
-
-			while(element != nullptr)
-			{
-				element->ztext = ztext;
-
-				if(element->child != nullptr)
-				{
-					stack.push(element->child);
-				}
-
-				element = element->next;
-			}
-		}
-	}
-	*/
-
-	// }}}
-	// {{{ String Helpers
-
-	bool is_valid_token_name_character_(const unsigned char c
-		) noexcept
-	{
-		if(std::isalnum(c) != 0
-			|| c == '-'
-			|| c == '_'
-			)
-		{
-			return true;
-		}
-
-		return false;
-	}
-
-
+namespace
+{
 	std::string string_clean_escapes_(std::string string
 		) noexcept
 	{
@@ -580,10 +548,27 @@ print(element, true);
 
 		return string.substr(start, end - start + 1);
 	}
-	
-	// }}}
-	// {{{ Parse
 
+
+	std::string to_string_(const ztext::Type type
+		) noexcept
+	{
+		switch(type)
+		{
+			case ztext::Type::Variable: return "variable";
+			case ztext::Type::Text:     return "text";
+			case ztext::Type::Command:  return "command";
+		}
+
+		return {};
+	}
+}
+
+// }}}
+// {{{ Private: Parse
+
+namespace
+{
 	std::error_code parse_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
 	std::error_code parse_text_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
 	std::error_code parse_token_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
@@ -591,6 +576,8 @@ print(element, true);
 	std::error_code parse_token_name_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_variable_(Token&, const std::string&) noexcept;
 
+
+	// {{{ Private: Parse: Text
 
 	std::error_code parse_text_(const std::string& string
 		, size_t&          begin
@@ -645,6 +632,23 @@ print(element, true);
 		return ztext::Error_None;
 	}
 
+	// }}}
+	// {{{ Private: Parse: Token
+
+	inline bool is_valid_token_name_character_(const unsigned char c
+		) noexcept
+	{
+		if(std::isalnum(c) != 0
+			|| c == '-'
+			|| c == '_'
+			)
+		{
+			return true;
+		}
+
+		return false;
+	}
+
 
 	std::error_code parse_token_name_(Token& token
 		, const std::string& string
@@ -663,6 +667,11 @@ debug(token, string);
 			return ztext::Error_Parser_Token_Name_Missing;
 		}
 
+		// BUG: Loop until one of the following is found
+		//	- an invalid character
+		//	- a token identifier
+		//	- a token begin/end
+		//	- white space
 		while(is_valid_token_name_character_(string[index]) == true)
 		{
 			index++;
@@ -701,6 +710,8 @@ debug(token, string);
 		return ztext::Error_None;
 	}
 
+	// }}}
+	// {{{ Private: Parse: Token: Variable
 
 	std::error_code parse_token_variable_(Token& token
 		, const std::string& string
@@ -725,6 +736,8 @@ debug(token, string);
 		return ztext::Error_None;
 	}
 
+	// }}}
+	// {{{ Private: Parse: Token
 
 	std::error_code parse_token_(const std::string& string
 		, size_t&            string_begin
@@ -869,6 +882,8 @@ printf("--- 5.0 ---\n");
 		return ztext::Error_None;
 	}
 
+	// }}}
+	// {{{ Private: Parse
 
 	std::error_code parse_(const std::string& string
 		, size_t&          index_begin
@@ -929,18 +944,13 @@ printf("%s\n", __FUNCTION__);
 
 	// }}}
 
-	std::string to_string_(const ztext::Type type
-		) noexcept
-	{
-		switch(type)
-		{
-			case ztext::Type::Variable: return "variable";
-			case ztext::Type::Text:     return "text";
-			case ztext::Type::Command:  return "command";
-		}
+}
 
-		return {};
-	}
+// }}}
+// {{{ Private: Error
+
+namespace
+{
 
 	void report_error(const std::error_code& error
 		, const std::string& string
@@ -1538,7 +1548,7 @@ TEST_CASE("parse/variable")
 		CHECK(var->text == "var");
 
 printf("--------------------------------------------------------------------------------\n");
-		error = ztext::parse("{{foo$ {{var$}}}}", element);
+		error = ztext::parse("{{foo$ {{var$}} }}", element);
 		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
@@ -1768,6 +1778,39 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 
 	delete element;
 	element = nullptr;
+
+	/*
+	 * ********************************************************
+	 * BUG: The above/current code will only destroy the first
+	 *      child. Any siblings will be lost.
+	 * Use the following code to find and delete all children
+	 * ********************************************************
+	void element_ztext_set_(ztext::Element* element_head
+		, ztext::ZText* ztext
+		) noexcept
+	{
+		std::stack<ztext::Element*> stack = {};
+		stack.push(element_head);
+
+		while(stack.empty() == false)
+		{
+			ztext::Element* element = stack.top();
+			stack.pop();
+
+			while(element != nullptr)
+			{
+				element->ztext = ztext;
+
+				if(element->child != nullptr)
+				{
+					stack.push(element->child);
+				}
+
+				element = element->next;
+			}
+		}
+	}
+	*/
 
 	return retval;
 }
@@ -2200,59 +2243,14 @@ printf("%s\n", __FUNCTION__);
 	return ztext::Error_None;
 }
 
-
-#if 0
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/text/create")
+TEST_CASE("element/variable/set")
 {
 	ztext::ZText*   zt   = ztext::create();
-	ztext::Element* text = ztext::element_text_create("text");
-
-	CHECK(text->text == "text");
 
 	destroy(zt);
 }
 #endif // }}}
-
-
-std::error_code ztext::element_text_set(Element* element
-	, const std::string& text
-	) noexcept
-{
-	#if ZTEXT_DEBUG_ENABLED
-	if(element == nullptr)
-	{
-		ZTEXT_ERROR
-			<< "Invalid Parameter: 'element' can not be null"
-			<< '\n';
-
-		return Error_Invalid_Parameter;
-	}
-	#endif
-
-
-	return Error_None;
-}
-
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/text/set")
-{
-	ztext::Element* element = nullptr;
-	std::error_code error = {};
-
-	error = ztext::element_text_set(element, "aaa");
-	CHECK(error == ztext::Error_Invalid_Parameter);
-
-	element = ztext::element_variable_create("var");
-	error = ztext::element_text_set(element, "bbb");
-	CHECK(error == ztext::Error_Wrong_Type);
-
-	element = ztext::element_text_create("bbb");
-	ztext::element_text_set(element, "ccc");
-	CHECK(element->text == "ccc");
-}
-#endif // }}}
-#endif
 
 // }}}
 // {{{ Debugging
@@ -2307,7 +2305,6 @@ void ztext::print(const ztext::Element* element
 {
 	print_(element, children, 0);
 }
-
 
 // }}}
 
