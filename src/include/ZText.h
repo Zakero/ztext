@@ -577,7 +577,6 @@ namespace
 	std::error_code parse_token_name_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_variable_(Token&, const std::string&) noexcept;
 
-
 	// {{{ Private: Parse
 
 	std::error_code parse_(const std::string& string
@@ -799,56 +798,6 @@ print(element, true);
 		}
 
 		string_begin = index_end + 1;
-#if 0
-		element = nullptr;
-
-		Token token;
-		token.begin = index_begin;
-		index_begin += 2;
-		index_end = index_begin;
-
-		// BUG - This will not work with nested tokens
-		while(index_end < string.size())
-		{
-			if(string[index_end] == '}'
-				&& string[index_end - 1] != '\\'
-				&& string[index_end + 1] == '}'
-				)
-			{
-				token.end = index_end + 1;
-				break;
-			}
-
-			index_end++;
-		}
-
-printf("--- 2.0 --- %lu >= %lu\n", index_end , string.size());
-		if(index_end >= string.size())
-		{
-			return Error_Parser_Token_End_Marker_Missing;
-		}
-
-printf("--- 3.0 ---\n");
-		std::error_code error = parse_token_name_(string, token);
-		if(error != Error_None)
-		{
-			return error;
-		}
-
-printf("--- 4.0 ---\n");
-
-		error = parse_token_identifier_(string, token);
-		if(error != Error_None)
-		{
-			return error;
-		}
-
-printf("--- 5.0 ---\n");
-		if(string[token.identifier] == '$')
-		{
-			error = parse_token_variable_(ztext, string, token, element);
-		}
-#endif
 
 		return ztext::Error_None;
 	}
