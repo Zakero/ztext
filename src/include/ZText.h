@@ -1418,7 +1418,7 @@ TEST_CASE("parse/text")
 	destroy(zt);
 }
 #endif // }}}
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/variable
+#if 0//def ZTEXT_IMPLEMENTATION_TEST // {{{ parse/variable
 TEST_CASE("parse/variable")
 {
 	ztext::ZText*   zt      = ztext::create();
@@ -1752,7 +1752,6 @@ TEST_CASE("element/insert")
 #endif // }}}
 
 
-
 ztext::Element* ztext::element_destroy(ztext::Element*& element
 	) noexcept
 {
@@ -1765,52 +1764,41 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 	}
 	#endif
 
+	std::stack<ztext::Element*> stack = {};
+
 	element_remove(element);
 
-	while(element->child != nullptr)
+	if(element->child != nullptr)
 	{
-		element->child = element_destroy(element->child);
+		stack.push(element->child);
 	}
 
 	ztext::Element* retval = element->next;
 
 	element_init_(element);
-
 	delete element;
 	element = nullptr;
 
-	/*
-	 * ********************************************************
-	 * BUG: The above/current code will only destroy the first
-	 *      child. Any siblings will be lost.
-	 * Use the following code to find and delete all children
-	 * ********************************************************
-	void element_ztext_set_(ztext::Element* element_head
-		, ztext::ZText* ztext
-		) noexcept
+	while(stack.empty() == false)
 	{
-		std::stack<ztext::Element*> stack = {};
-		stack.push(element_head);
+		element = stack.top();
+		stack.pop();
 
-		while(stack.empty() == false)
+		while(element != nullptr)
 		{
-			ztext::Element* element = stack.top();
-			stack.pop();
-
-			while(element != nullptr)
+			if(element->child != nullptr)
 			{
-				element->ztext = ztext;
-
-				if(element->child != nullptr)
-				{
-					stack.push(element->child);
-				}
-
-				element = element->next;
+				stack.push(element->child);
 			}
+
+			ztext::Element* temp = element->next;
+
+			element_init_(element);
+			delete element;
+
+			element = temp;
 		}
 	}
-	*/
 
 	return retval;
 }
