@@ -577,6 +577,66 @@ namespace
 	std::error_code parse_token_variable_(Token&, const std::string&) noexcept;
 
 
+	// {{{ Private: Parse
+
+	std::error_code parse_(const std::string& string
+		, size_t&          index_begin
+		, size_t&          index_end
+		, ztext::Element*& element_head
+		) noexcept
+	{
+printf("%s\n", __FUNCTION__);
+		element_head = nullptr;
+		ztext::Element* element_tail = nullptr;
+
+		while(index_begin <= index_end)
+		{
+			ztext::Element* element = nullptr;
+			std::error_code error   = ztext::Error_None;
+
+			if((index_begin + 1) <= index_end
+				&& string[index_begin + 0] == Token_Begin
+				&& string[index_begin + 1] == Token_Begin
+				)
+			{
+				error = parse_token_(string, index_begin, index_end, element);
+			}
+			else
+			{
+				error = parse_text_(string, index_begin, index_end, element);
+
+				if(error == ztext::Error_Parser_No_Text_Found)
+				{
+					continue;
+				}
+			}
+
+			if(error != ztext::Error_None)
+			{
+				while(element_head != nullptr)
+				{
+					element_head = ztext::element_destroy(element_head);
+				}
+
+				return error;
+			}
+
+			if(element_head == nullptr)
+			{
+				element_head = element;
+			}
+			else
+			{
+				ztext::element_append(element_tail, element);
+			}
+
+			element_tail = element;
+		}
+
+		return ztext::Error_None;
+	}
+
+	// }}}
 	// {{{ Private: Parse: Text
 
 	std::error_code parse_text_(const std::string& string
@@ -635,110 +695,6 @@ namespace
 	// }}}
 	// {{{ Private: Parse: Token
 
-	inline bool is_valid_token_name_character_(const unsigned char c
-		) noexcept
-	{
-		if(std::isalnum(c) != 0
-			|| c == '-'
-			|| c == '_'
-			)
-		{
-			return true;
-		}
-
-		return false;
-	}
-
-
-	std::error_code parse_token_name_(Token& token
-		, const std::string& string
-		) noexcept
-	{
-printf("\n%s\n", __FUNCTION__);
-debug(token, string);
-		size_t index = string_skip_whitespace_(string, token.begin + 2);
-		token.name_begin = index;
-
-		if(string[index] == Identifier_Variable
-			|| string[index] == Identifier_Command
-			|| string[index] == Token_End
-			)
-		{
-			return ztext::Error_Parser_Token_Name_Missing;
-		}
-
-		// BUG: Loop until one of the following is found
-		//	- an invalid character
-		//	- a token identifier
-		//	- a token begin/end
-		//	- white space
-		while(is_valid_token_name_character_(string[index]) == true)
-		{
-			index++;
-		}
-
-		if(token.name_begin == index)
-		{
-			return ztext::Error_Parser_Token_Name_Invalid;
-		}
-
-		token.name_end = index - 1;
-
-debug(token, string);
-
-		return ztext::Error_None;
-	}
-
-
-	std::error_code parse_token_identifier_(Token& token
-		, const std::string& string
-		) noexcept
-	{
-printf("\n%s\n", __FUNCTION__);
-debug(token, string);
-
-		size_t index = string_skip_whitespace_(string, token.name_end + 1);
-		token.identifier = index;
-
-		if(string[index] != Identifier_Variable
-			)
-		{
-			return ztext::Error_Parser_Token_Identifier_Invalid;
-		}
-
-debug(token, string);
-		return ztext::Error_None;
-	}
-
-	// }}}
-	// {{{ Private: Parse: Token: Variable
-
-	std::error_code parse_token_variable_(Token& token
-		, const std::string& string
-		) noexcept
-	{
-printf("\n%s\n", __FUNCTION__);
-debug(token, string);
-
-		size_t index = string_skip_whitespace_(string, token.identifier + 1);
-printf("%lu %c\n", index, string[index]);
-
-		if(string[index] == Token_End)
-		{
-			return ztext::Error_None;
-		}
-
-		token.content_begin = index;
-		token.content_end   = token.end - 2;
-
-debug(token, string);
-
-		return ztext::Error_None;
-	}
-
-	// }}}
-	// {{{ Private: Parse: Token
-
 	std::error_code parse_token_(const std::string& string
 		, size_t&            string_begin
 		, size_t&            string_end
@@ -770,11 +726,15 @@ printf("%s\n", __FUNCTION__);
 				if((index_end + 1) <= string_end
 					&& string[index_end - 1] != Token_Escape
 					&& string[index_end + 1] == Token_End
-					&& depth == 0
 					)
 				{
-					index_end++;
-					break;
+					if(depth == 0)
+					{
+						index_end++;
+						break;
+					}
+
+					depth--;
 				}
 			}
 
@@ -883,67 +843,112 @@ printf("--- 5.0 ---\n");
 	}
 
 	// }}}
-	// {{{ Private: Parse
+	// {{{ Private: Parse: Token Name
 
-	std::error_code parse_(const std::string& string
-		, size_t&          index_begin
-		, size_t&          index_end
-		, ztext::Element*& element_head
+	inline bool is_valid_token_name_character_(const unsigned char c
 		) noexcept
 	{
-printf("%s\n", __FUNCTION__);
-		element_head = nullptr;
-		ztext::Element* element_tail = nullptr;
-
-		while(index_begin <= index_end)
+		if(std::isalnum(c) != 0
+			|| c == '-'
+			|| c == '_'
+			)
 		{
-			ztext::Element* element = nullptr;
-			std::error_code error   = ztext::Error_None;
-
-			if((index_begin + 1) <= index_end
-				&& string[index_begin + 0] == Token_Begin
-				&& string[index_begin + 1] == Token_Begin
-				)
-			{
-				error = parse_token_(string, index_begin, index_end, element);
-			}
-			else
-			{
-				error = parse_text_(string, index_begin, index_end, element);
-
-				if(error == ztext::Error_Parser_No_Text_Found)
-				{
-					continue;
-				}
-			}
-
-			if(error != ztext::Error_None)
-			{
-				while(element_head != nullptr)
-				{
-					element_head = ztext::element_destroy(element_head);
-				}
-
-				return error;
-			}
-
-			if(element_head == nullptr)
-			{
-				element_head = element;
-			}
-			else
-			{
-				ztext::element_append(element_tail, element);
-			}
-
-			element_tail = element;
+			return true;
 		}
+
+		return false;
+	}
+
+
+	std::error_code parse_token_name_(Token& token
+		, const std::string& string
+		) noexcept
+	{
+printf("\n%s\n", __FUNCTION__);
+debug(token, string);
+		size_t index = string_skip_whitespace_(string, token.begin + 2);
+		token.name_begin = index;
+
+		if(string[index] == Identifier_Variable
+			|| string[index] == Identifier_Command
+			|| string[index] == Token_End
+			)
+		{
+			return ztext::Error_Parser_Token_Name_Missing;
+		}
+
+		// BUG: Loop until one of the following is found
+		//	- an invalid character
+		//	- a token identifier
+		//	- a token begin/end
+		//	- white space
+		while(is_valid_token_name_character_(string[index]) == true)
+		{
+			index++;
+		}
+
+		if(token.name_begin == index)
+		{
+			return ztext::Error_Parser_Token_Name_Invalid;
+		}
+
+		token.name_end = index - 1;
+
+debug(token, string);
 
 		return ztext::Error_None;
 	}
 
 	// }}}
+	// {{{ Private: Parse: Token Identifier
 
+	std::error_code parse_token_identifier_(Token& token
+		, const std::string& string
+		) noexcept
+	{
+printf("\n%s\n", __FUNCTION__);
+debug(token, string);
+
+		size_t index = string_skip_whitespace_(string, token.name_end + 1);
+		token.identifier = index;
+
+		if(string[index] != Identifier_Variable
+			)
+		{
+			return ztext::Error_Parser_Token_Identifier_Invalid;
+		}
+
+debug(token, string);
+		return ztext::Error_None;
+	}
+
+	// }}}
+	// {{{ Private: Parse: Token: Variable
+
+	std::error_code parse_token_variable_(Token& token
+		, const std::string& string
+		) noexcept
+	{
+printf("\n%s\n", __FUNCTION__);
+debug(token, string);
+
+		size_t index = string_skip_whitespace_(string, token.identifier + 1);
+printf("%lu %c\n", index, string[index]);
+
+		if(string[index] == Token_End)
+		{
+			return ztext::Error_None;
+		}
+
+		token.content_begin = index;
+		token.content_end   = token.end - 2;
+
+debug(token, string);
+
+		return ztext::Error_None;
+	}
+
+	// }}}
 }
 
 // }}}
@@ -1418,7 +1423,7 @@ TEST_CASE("parse/text")
 	destroy(zt);
 }
 #endif // }}}
-#if 0//def ZTEXT_IMPLEMENTATION_TEST // {{{ parse/variable
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/variable
 TEST_CASE("parse/variable")
 {
 	ztext::ZText*   zt      = ztext::create();
@@ -1539,28 +1544,24 @@ TEST_CASE("parse/variable")
 
 	SUBCASE("Variable With Nested Variables")
 	{
-		ztext::Element* var = nullptr;
-		error = ztext::parse("{{var$ abc}}", var);
-		CHECK(error == ztext::Error_None);
-
-		CHECK(var       != nullptr);
-		CHECK(var->type == ztext::Type::Variable);
-		CHECK(var->text == "var");
-
 printf("--------------------------------------------------------------------------------\n");
-		error = ztext::parse("{{foo$ {{var$}} }}", element);
-		CHECK(error == ztext::Error_None);
+		ztext::Element* var = nullptr;
+		ztext::Element* foo = nullptr;
+		ztext::Element* bar = nullptr;
 
-		CHECK(element       != nullptr);
-		CHECK(element->type == ztext::Type::Variable);
-		CHECK(element->text == "foo");
+		error = ztext::parse("{{var$ abc}}"      , var);
+		error = ztext::parse("{{foo$ {{var$}} }}", foo);
+		error = ztext::parse("{{bar$ {{foo$}} }}", bar);
 
-		ztext::element_append(var, element);
+		ztext::element_append(var, foo);
+		ztext::element_append(foo, bar);
 
-		CHECK(ztext::eval(zt, var) == "abc abc");
+		CHECK(ztext::eval(zt, var) == "abcabcabc");
 
+		ztext::print(var, true);
 		ztext::element_destroy(var);
-		ztext::element_destroy(element);
+		ztext::element_destroy(foo);
+		ztext::element_destroy(bar);
 	}
 
 	SUBCASE("Variable With Nested Variables Recursive")
