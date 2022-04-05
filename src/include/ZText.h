@@ -44,7 +44,6 @@
  *
  * -------------------------------------------------------------------------
  *
- * Bug: ztext::parse("{{var$ xyz}}-{{foo${{var$}}-{{bar${{foo$}} }}", var);
  * Test - Subcase - Variable With Data
  */
 
@@ -155,6 +154,7 @@ namespace ztext
 	[[]]          std::error_code element_append(Element*, Element*) noexcept;
 	[[]]          std::error_code element_insert(Element*, Element*) noexcept;
 	[[]]          Element*        element_destroy(Element*&) noexcept;
+	[[]]          void            element_destroy_all(Element*&) noexcept;
 	[[]]          void            element_remove(Element*) noexcept;
 	[[nodiscard]] Element*        element_next(Element*) noexcept;
 	[[nodiscard]] Element*        element_prev(Element*) noexcept;
@@ -652,7 +652,8 @@ while(e != nullptr)
 		) noexcept
 	{
 printf("%s\n", __FUNCTION__);
-//printf("%s\n", string.c_str());
+printf("%s\n", string.c_str());
+printf("%lu %lu '%s'\n", begin, end, string.substr(begin, (end - begin + 1)).c_str());
 		size_t index = begin;
 
 		while(index <= end)
@@ -795,9 +796,7 @@ print(element, true);
 			}
 		}
 
-
-
-string_begin = string_end + 1;
+		string_begin = index_end + 1;
 #if 0
 		element = nullptr;
 
@@ -1590,11 +1589,9 @@ TEST_CASE("parse/variable")
 		ztext::element_destroy(bar);
 
 printf("--------------------------------------------------------------------------------\n");
-/*
-		error = ztext::parse("{{var$ xyz}}-{{foo${{var$}}-{{bar${{foo$}} }}", var);
-		CHECK(ztext::eval(zt, var) == "xyz-xyz-xyz");
-		ztext::element_destroy(var);
-*/
+		error = ztext::parse("{{var$ xyz}}-{{foo$!{{var$}}!}}-{{bar$?{{foo$}}?}}", var);
+		CHECK(ztext::eval(zt, var) == "xyz-!xyz!-?!xyz!?");
+		ztext::element_destroy_all(var);
 	}
 
 	SUBCASE("Variable With Nested Variables Recursive")
@@ -1869,6 +1866,41 @@ TEST_CASE("element/destroy")
 	CHECK(ztext::element_next(foo) == nullptr);
 
 	ztext::element_destroy(foo);
+	CHECK(foo == nullptr);
+}
+#endif // }}}
+
+
+void ztext::element_destroy_all(ztext::Element*& element
+	) noexcept
+{
+	#if ZTEXT_DEBUG_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+	}
+	#endif
+
+	while(element != nullptr)
+	{
+		element = ztext::element_destroy(element);
+	}
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/destroy/all")
+{
+	// Must be run in Valgrind to check for memory leaks
+	ztext::Element* foo = ztext::element_text_create("foo");
+	ztext::Element* bar = ztext::element_text_create("bar");
+	ztext::Element* xyz = ztext::element_text_create("xyz");
+
+	ztext::element_append(foo, xyz);
+	ztext::element_append(xyz, bar);
+
+	ztext::element_destroy_all(foo);
 	CHECK(foo == nullptr);
 }
 #endif // }}}
