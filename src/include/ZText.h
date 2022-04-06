@@ -103,8 +103,7 @@
 	X(Error_Parser_Token_End_Marker_Missing    ,  7 , "The Parser was not able to find the token end marker '}}'" ) \
 	X(Error_Parser_Token_Name_Missing          ,  8 , "The Parser was not able to find the token name"        ) \
 	X(Error_Parser_Token_Identifier_Invalid    ,  9 , "The Parser found an invalid token identifier" ) \
-	X(Error_Parser_Variable_Content_Invalid    , 10 , "The Parser found an invalid content used with a variable" ) \
-	X(Error_Parser_Token_Begin_Marker_Missing  , 11 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
+	X(Error_Parser_Token_Begin_Marker_Missing  , 10 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
 
 
 // }}}
