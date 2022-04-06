@@ -177,6 +177,7 @@ namespace ztext
 	[[nodiscard]] Element*        element_variable_create(const std::string&) noexcept;
 	[[]]          std::error_code element_variable_set(Element*, const std::string&) noexcept;
 	[[]]          std::error_code element_variable_set(Element*, const std::string&, size_t, size_t) noexcept;
+	[[]]          std::error_code element_variable_set(Element*, Element*) noexcept;
 
 	// --- Debugging --- //
 	#ifdef ZTEXT_DEBUG_ENABLED
@@ -705,6 +706,7 @@ printf("%lu %lu '%s'\n", begin, end, string.substr(begin, (end - begin + 1)).c_s
 		}
 
 		std::string text = string_substr_(string, begin, index);
+		text = string_clean_whitespace_(text);
 
 		begin = index + 1;
 
@@ -2128,7 +2130,7 @@ ztext::Element* ztext::element_text_create(const std::string& text
 	ztext::Element* element = new ztext::Element;
 
 	element->type = ztext::Type::Text;
-	element->text = string_clean_whitespace_(text);
+	element->text = text;
 
 	return element;
 }
@@ -2147,8 +2149,8 @@ TEST_CASE("element/text/create")
 
 	SUBCASE("White-Space")
 	{
-		ztext::Element* text = ztext::element_text_create("	 text	 ");
-		CHECK(ztext::eval(zt, text) == " text ");
+		ztext::Element* text = ztext::element_text_create("   text   ");
+		CHECK(ztext::eval(zt, text) == "   text   ");
 		ztext::element_destroy(text);
 	}
 
@@ -2181,7 +2183,7 @@ std::error_code ztext::element_text_set(Element* element
 		return Error_Element_Type_Not_Text;
 	}
 
-	element->text = string_clean_whitespace_(text);
+	element->text = text;
 
 	return Error_None;
 }
@@ -2218,7 +2220,7 @@ TEST_CASE("element/text/set")
 	{
 		element = ztext::element_text_create("ccc");
 		ztext::element_text_set(element, "   d   d   d   ");
-		CHECK(ztext::eval(zt, element) == " d d d ");
+		CHECK(ztext::eval(zt, element) == "   d   d   d   ");
 		ztext::element_destroy(element);
 	}
 
@@ -2240,6 +2242,18 @@ ztext::Element* ztext::element_variable_create(const std::string& name
 	return element;
 }
 
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/variable/create")
+{
+	ztext::ZText* zt = ztext::create();
+
+	ztext::Element* var = ztext::element_variable_create("var");
+	CHECK(ztext::eval(zt, var) == "");
+	ztext::element_destroy(var);
+
+	ztext::destroy(zt);
+}
+#endif // }}}
 
 std::error_code ztext::element_variable_set(Element* element
 	, const std::string& string
@@ -2291,9 +2305,7 @@ printf("%s\n", __FUNCTION__);
 
 		return Error_Invalid_Parameter;
 	}
-	#endif
 
-	#if ZTEXT_DEBUG_ENABLED
 	if(element->type != ztext::Type::Variable)
 	{
 		ZTEXT_ERROR
@@ -2332,7 +2344,7 @@ printf("%s\n", __FUNCTION__);
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
 TEST_CASE("element/variable/set")
 {
-	ztext::ZText*   zt   = ztext::create();
+	ztext::ZText* zt = ztext::create();
 
 	destroy(zt);
 }
