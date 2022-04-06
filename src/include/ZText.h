@@ -705,8 +705,6 @@ printf("%lu %lu '%s'\n", begin, end, string.substr(begin, (end - begin + 1)).c_s
 		}
 
 		std::string text = string_substr_(string, begin, index);
-		//text = string_trim_(text);
-		text = string_clean_whitespace_(text);
 
 		begin = index + 1;
 
@@ -2124,13 +2122,13 @@ TEST_CASE("element/find/tail")
 // }}}
 // {{{ Element: Text
 
-ztext::Element* ztext::element_text_create(const std::string& string
+ztext::Element* ztext::element_text_create(const std::string& text
 	) noexcept
 {
 	ztext::Element* element = new ztext::Element;
 
 	element->type = ztext::Type::Text;
-	element->text = string;
+	element->text = string_clean_whitespace_(text);
 
 	return element;
 }
@@ -2138,11 +2136,23 @@ ztext::Element* ztext::element_text_create(const std::string& string
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
 TEST_CASE("element/text/create")
 {
-	ztext::Element* text = ztext::element_text_create("text");
+	ztext::ZText* zt = ztext::create();
 
-	CHECK(text->text == "text");
+	SUBCASE("Simple")
+	{
+		ztext::Element* text = ztext::element_text_create("text");
+		CHECK(ztext::eval(zt, text) == "text");
+		ztext::element_destroy(text);
+	}
 
-	ztext::element_destroy(text);
+	SUBCASE("White-Space")
+	{
+		ztext::Element* text = ztext::element_text_create("	 text	 ");
+		CHECK(ztext::eval(zt, text) == " text ");
+		ztext::element_destroy(text);
+	}
+
+	ztext::destroy(zt);
 }
 #endif // }}}
 
@@ -2171,7 +2181,7 @@ std::error_code ztext::element_text_set(Element* element
 		return Error_Element_Type_Not_Text;
 	}
 
-	element->text = text;
+	element->text = string_clean_whitespace_(text);
 
 	return Error_None;
 }
@@ -2180,20 +2190,39 @@ std::error_code ztext::element_text_set(Element* element
 TEST_CASE("element/text/set")
 {
 	ztext::Element* element = nullptr;
-	std::error_code error = {};
 
-	error = ztext::element_text_set(element, "aaa");
-	CHECK(error == ztext::Error_Invalid_Parameter);
+	SUBCASE("Invalid")
+	{
+		std::error_code error = {};
 
-	element = ztext::element_variable_create("var");
-	error = ztext::element_text_set(element, "bbb");
-	CHECK(error == ztext::Error_Element_Type_Not_Text);
-	ztext::element_destroy(element);
+		error = ztext::element_text_set(element, "aaa");
+		CHECK(error == ztext::Error_Invalid_Parameter);
 
-	element = ztext::element_text_create("ccc");
-	ztext::element_text_set(element, "ddd");
-	CHECK(element->text == "ddd");
-	ztext::element_destroy(element);
+		element = ztext::element_variable_create("var");
+		error = ztext::element_text_set(element, "bbb");
+		CHECK(error == ztext::Error_Element_Type_Not_Text);
+		ztext::element_destroy(element);
+	}
+
+	ztext::ZText* zt = ztext::create();
+
+	SUBCASE("Simple")
+	{
+		element = ztext::element_text_create("ccc");
+		ztext::element_text_set(element, "ddd");
+		CHECK(ztext::eval(zt, element) == "ddd");
+		ztext::element_destroy(element);
+	}
+
+	SUBCASE("White-Space")
+	{
+		element = ztext::element_text_create("ccc");
+		ztext::element_text_set(element, "   d   d   d   ");
+		CHECK(ztext::eval(zt, element) == " d d d ");
+		ztext::element_destroy(element);
+	}
+
+	ztext::destroy(zt);
 }
 #endif // }}}
 
