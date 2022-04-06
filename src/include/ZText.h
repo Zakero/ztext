@@ -45,8 +45,6 @@
  *
  * -------------------------------------------------------------------------
  *
- * Rename ZTEXT_DEBUG_ENABLED to ZTEXT_ERROR_CHECKS_ENABLED
- * Add ZTEXT_ERROR_MESSAGES_ENABLED
  */
 
 
@@ -70,9 +68,13 @@
 
 // {{{ Macros
 
-#define ZTEXT_ERROR std::cerr \
-	<< std::source_location::current().function_name() \
-	<< " - "
+#ifndef ZTEXT_ERROR_MESSAGES_ENABLED
+#define ZTEXT_ERROR_MESSAGES_ENABLED 0
+#endif
+
+#define ZTEXT_ERROR_MESSAGE \
+	if(ZTEXT_ERROR_MESSAGES_ENABLED == 0) {} \
+	else std::cerr << std::source_location::current().function_name() << " - "
 
 /**
  * \internal
@@ -184,9 +186,7 @@ namespace ztext
 	[[]]          std::error_code element_variable_set(Element*, Element*) noexcept;
 
 	// --- Debugging --- //
-	#ifdef ZTEXT_DEBUG_ENABLED
 	[[]]          void            print(const Element*, const bool = false) noexcept;
-	#endif
 }
 
 #ifdef ZTEXT_IMPLEMENTATION // {{{
@@ -1064,14 +1064,14 @@ TEST_CASE("create")
 void ztext::destroy(ztext::ZText*& ztext
 	) noexcept
 {
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(ztext == nullptr)
 	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'ztext' can not be NULL."
 			<< '\n';
-		#endif
 	}
+	#endif
 
 	ztext::cache_clear(ztext);
 
@@ -1093,14 +1093,14 @@ TEST_CASE("destroy")
 void ztext::cache_clear(ztext::ZText* ztext
 	) noexcept
 {
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(ztext == nullptr)
 	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'ztext' can not be NULL."
 			<< '\n';
-		#endif
 	}
+	#endif
 
 	ztext::cache_variable_clear_all(ztext);
 }
@@ -1131,10 +1131,10 @@ TEST_CASE("cache/clear")
 void ztext::cache_variable_clear_all(ztext::ZText* ztext
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(ztext == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'ztext' can not be NULL."
 			<< '\n';
 	}
@@ -1175,10 +1175,10 @@ TEST_CASE("cache/variable/clear/all")
 ztext::VectorString ztext::cache_variable_list(ztext::ZText* ztext
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(ztext == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'ztext' can not be NULL."
 			<< '\n';
 	}
@@ -1220,17 +1220,17 @@ std::string ztext::eval(ztext::ZText* ztext
 	, bool            to_end
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(ztext == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'ztext' can not be null"
 			<< '\n';
 	}
 
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
@@ -1251,7 +1251,7 @@ std::string ztext::eval(ztext::ZText* ztext
 				break;
 
 			case ztext::Type::Command:
-				ZTEXT_ERROR << "Not Implemented\n";
+				ZTEXT_ERROR_MESSAGE << "Not Implemented\n";
 				//retval += element_eval_command_(ztext, element);
 				break;
 		}
@@ -1711,35 +1711,34 @@ std::error_code ztext::element_append(ztext::Element* position
 	, ztext::Element* element
 	) noexcept
 {
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(position == nullptr)
 	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'position' can not be NULL."
 			<< '\n';
-		#endif
+
 		return Error_Invalid_Parameter;
 	}
 
 	if(element == nullptr)
 	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be NULL."
 			<< '\n';
-		#endif
+
 		return Error_Invalid_Parameter;
 	}
 
 	if(element->prev != nullptr)
 	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Element In-Use: 'element' is already linked."
 			<< '\n';
-		#endif
+
 		return Error_Element_In_Use;
 	}
+	#endif
 
 	Element* tail = element;
 	while(true)
@@ -1805,35 +1804,34 @@ std::error_code ztext::element_insert(ztext::Element* position
 	, ztext::Element* element
 	) noexcept
 {
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(position == nullptr)
 	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'position' can not be NULL."
 			<< '\n';
-		#endif
+
 		return Error_Invalid_Parameter;
 	}
 
 	if(element == nullptr)
 	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be NULL."
 			<< '\n';
-		#endif
+
 		return Error_Invalid_Parameter;
 	}
 
 	if(element->prev != nullptr)
 	{
-		#if ZTEXT_DEBUG_ENABLED
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Element In-Use: 'element' is already linked."
 			<< '\n';
-		#endif
+
 		return Error_Element_In_Use;
 	}
+	#endif
 
 	Element* tail = element;
 	while(true)
@@ -1898,10 +1896,10 @@ TEST_CASE("element/insert")
 ztext::Element* ztext::element_destroy(ztext::Element*& element
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
@@ -1976,10 +1974,10 @@ TEST_CASE("element/destroy")
 void ztext::element_destroy_all(ztext::Element*& element
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
@@ -2011,10 +2009,10 @@ TEST_CASE("element/destroy/all")
 void ztext::element_remove(ztext::Element* element
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
@@ -2073,10 +2071,10 @@ TEST_CASE("element/remove")
 ztext::Element* ztext::element_next(ztext::Element* element
 		) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
@@ -2110,10 +2108,10 @@ TEST_CASE("element/next")
 ztext::Element* ztext::element_prev(ztext::Element* element
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
@@ -2147,10 +2145,10 @@ TEST_CASE("element/prev")
 ztext::Element* ztext::element_find_head(ztext::Element* element
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
@@ -2190,10 +2188,10 @@ TEST_CASE("element/find/head")
 ztext::Element* ztext::element_find_tail(ztext::Element* element
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 	}
@@ -2272,25 +2270,25 @@ std::error_code ztext::element_text_set(Element* element
 	, const std::string& text
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 
 		return Error_Invalid_Parameter;
 	}
-	#endif
 
 	if(element->type != ztext::Type::Text)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' must be of type 'text'"
 			<< '\n';
 
 		return Error_Element_Type_Not_Text;
 	}
+	#endif
 
 	element->text = text;
 
@@ -2379,10 +2377,10 @@ std::error_code ztext::element_variable_set(Element* element
 	, const std::string& string
 	) noexcept
 {
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 
@@ -2391,7 +2389,7 @@ std::error_code ztext::element_variable_set(Element* element
 
 	if(element->type != ztext::Type::Variable)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' must be of type 'variable'"
 			<< '\n';
 
@@ -2416,10 +2414,10 @@ std::error_code ztext::element_variable_set(Element* element
 printf("%s\n", __FUNCTION__);
 printf("- %lu %c\n", begin, string[begin]);
 printf("- %lu %c\n", end  , string[end]);
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 
@@ -2428,7 +2426,7 @@ printf("- %lu %c\n", end  , string[end]);
 
 	if(element->type != ztext::Type::Variable)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' must be of type 'variable'"
 			<< '\n';
 
@@ -2461,10 +2459,10 @@ std::error_code ztext::element_variable_set(Element* element
 	) noexcept
 {
 printf("%s\n", __FUNCTION__);
-	#if ZTEXT_DEBUG_ENABLED
+	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(element == nullptr)
 	{
-		ZTEXT_ERROR
+		ZTEXT_ERROR_MESSAGE
 			<< "Invalid Parameter: 'element' can not be null"
 			<< '\n';
 
