@@ -44,6 +44,7 @@
  *
  * -------------------------------------------------------------------------
  *
+ * Bug: Test Subcase "Variable Recursive"
  * Implement "Element: Variable" Tests
  * Implement clearing the ZText variable cache
  */
@@ -290,10 +291,11 @@ namespace ztext
 	};
 
 	using MapStringCommand = std::unordered_map<std::string, CommandLambda>;
+	using MapStringElement = std::unordered_map<std::string, Element*>;
 
 	struct ZText
 	{
-		MapStringString  variable = {};
+		MapStringElement variable = {};
 		MapStringCommand command  = {};
 	};
 }
@@ -390,19 +392,31 @@ namespace
 printf("\n%s\n", __FUNCTION__);
 print(element, true);
 
+		if(element->child != nullptr)
+		{
+			ztext->variable[element->text] = element->child;
+		}
+
 		if(ztext->variable.contains(element->text) == false)
 		{
-			ztext->variable[element->text] = "";
+			return "";
 		}
 
-		if(element->child == nullptr)
-		{
-			std::string retval = ztext->variable[element->text];
-			return retval;
-		}
+		std::string retval = eval(ztext, ztext->variable[element->text]);
 
-		std::string retval = eval(ztext, element->child);
-		ztext->variable[element->text] = retval;
+		//if(ztext->variable.contains(element->text) == false)
+		//{
+		//	ztext->variable[element->text] = "";
+		//}
+
+		//if(element->child == nullptr)
+		//{
+		//	std::string retval = ztext->variable[element->text];
+		//	return retval;
+		//}
+
+		//std::string retval = eval(ztext, element->child);
+		//ztext->variable[element->text] = retval;
 
 		return retval;
 	}
@@ -498,6 +512,7 @@ namespace
 	}
 
 
+	// Remove
 	size_t string_skip_whitespace_(const std::string& string
 		, size_t index
 		) noexcept
@@ -516,6 +531,36 @@ namespace
 	}
 
 
+	size_t string_skip_whitespace_leading_(const std::string& string
+		, size_t index
+		) noexcept
+	{
+		while(index < string.size()
+			&& std::isspace(static_cast<unsigned char>(string[index])) != 0
+			)
+		{
+			index++;
+		}
+
+		return index;
+	}
+
+
+	size_t string_skip_whitespace_trailing_(const std::string& string
+		, size_t index
+		) noexcept
+	{
+		while(index > 0
+			&& std::isspace(static_cast<unsigned char>(string[index])) != 0
+			)
+		{
+			index--;
+		}
+
+		return index;
+	}
+
+
 	std::string string_substr_(const std::string& string
 		, size_t begin
 		, size_t end
@@ -525,30 +570,32 @@ namespace
 	}
 
 
-	std::string string_trim_(std::string string
-		) noexcept
-	{
-		size_t len   = string.size();
-		size_t start = 0;
+	////std::string string_trim_(std::string string
+	//void string_trim_(const std::string& string
+	//	, size_t& start
+	//	, size_t& end
+	//	) noexcept
+	//{
+	//	size_t len   = string.size();
+	//	start = 0;
+	//	end   = len - 1;
 
-		while(start < len
-			&& std::isspace(static_cast<unsigned char>(string[start])) != 0
-			)
-		{
-			start++;
-		}
+	//	while(start < len
+	//		&& std::isspace(static_cast<unsigned char>(string[start])) != 0
+	//		)
+	//	{
+	//		start++;
+	//	}
 
-		size_t end = len - 1;
+	//	while(end > 0
+	//		&& std::isspace(static_cast<unsigned char>(string[end])) != 0
+	//		)
+	//	{
+	//		end--;
+	//	}
 
-		while(end > 0
-			&& std::isspace(static_cast<unsigned char>(string[end])) != 0
-			)
-		{
-			end--;
-		}
-
-		return string.substr(start, end - start + 1);
-	}
+	//	//return string.substr(start, end - start + 1);
+	//}
 
 
 	std::string to_string_(const ztext::Type type
@@ -687,7 +734,7 @@ printf("%lu %lu '%s'\n", begin, end, string.substr(begin, (end - begin + 1)).c_s
 		}
 
 		std::string text = string_substr_(string, begin, index);
-		text = string_trim_(text);
+		//text = string_trim_(text);
 		text = string_clean_whitespace_(text);
 
 		begin = index + 1;
@@ -892,7 +939,8 @@ debug(token, string);
 printf("\n%s\n", __FUNCTION__);
 debug(token, string);
 
-		size_t index = string_skip_whitespace_(string, token.identifier + 1);
+		//size_t index = string_skip_whitespace_(string, token.identifier + 1);
+		size_t index = string_skip_whitespace_leading_(string, token.identifier + 1);
 printf("%lu %c\n", index, string[index]);
 
 		if(string[index] == Token_End)
@@ -901,7 +949,8 @@ printf("%lu %c\n", index, string[index]);
 		}
 
 		token.content_begin = index;
-		token.content_end   = token.end - 2;
+		//token.content_end   = token.end - 2;
+		token.content_end   = string_skip_whitespace_trailing_(string, token.end - 2);
 
 debug(token, string);
 
@@ -1189,6 +1238,9 @@ std::error_code ztext::parse(const std::string& string
 	{
 		size_t index_begin = 0;
 		size_t index_end   = string.size() - 1;
+
+		//string_trim_(string, index_begin, index_end);
+
 		error = parse_(string, index_begin, index_end, element);
 
 		if(error == ztext::Error_Parser_No_Text_Found)
@@ -1266,7 +1318,7 @@ TEST_CASE("parse/text")
 		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
 		
-		CHECK(ztext::eval(zt, element) == "");
+		CHECK(ztext::eval(zt, element) == " ");
 		ztext::element_destroy(element);
 
 		// -------------------------------------- //
@@ -1276,7 +1328,7 @@ TEST_CASE("parse/text")
 		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
 		
-		CHECK(ztext::eval(zt, element) == "");
+		CHECK(ztext::eval(zt, element) == " ");
 		ztext::element_destroy(element);
 
 		// -------------------------------------- //
@@ -1286,7 +1338,7 @@ TEST_CASE("parse/text")
 		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
 		
-		CHECK(ztext::eval(zt, element) == "");
+		CHECK(ztext::eval(zt, element) == " ");
 		ztext::element_destroy(element);
 	}
 
@@ -1303,7 +1355,7 @@ TEST_CASE("parse/text")
 
 	SUBCASE("Leading White-Space")
 	{
-		std::string text = "X";
+		std::string text = " X";
 
 		error = ztext::parse(" 	 " + text, element);
 		CHECK(error == ztext::Error_None);
@@ -1314,7 +1366,7 @@ TEST_CASE("parse/text")
 
 	SUBCASE("Trailing White-Space")
 	{
-		std::string text = "X";
+		std::string text = "X ";
 
 		error = ztext::parse(text + " 	 	", element);
 		CHECK(error == ztext::Error_None);
@@ -1325,7 +1377,7 @@ TEST_CASE("parse/text")
 
 	SUBCASE("Leading and Trailing White-Space")
 	{
-		std::string text = "X";
+		std::string text = " X ";
 
 		error = ztext::parse("	" + text + "       ", element);
 		CHECK(error == ztext::Error_None);
@@ -1356,7 +1408,7 @@ TEST_CASE("parse/text")
 		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
-		CHECK(ztext::eval(zt, element) == "X Y Z");
+		CHECK(ztext::eval(zt, element) == " X Y Z ");
 		ztext::element_destroy(element);
 	}
 
@@ -1367,7 +1419,7 @@ TEST_CASE("parse/text")
 		error = ztext::parse(text, element);
 		CHECK(error == ztext::Error_None);
 		
-		CHECK(ztext::eval(zt, element) == "foo");
+		CHECK(ztext::eval(zt, element) == "foo ");
 
 		while(element != nullptr)
 		{
@@ -1459,7 +1511,7 @@ TEST_CASE("parse/variable")
 	{
 		ztext::clear(zt);
 
-		error = ztext::parse(" {{ var $ }} ", element);
+		error = ztext::parse("{{ var $ }}", element);
 		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
@@ -1489,7 +1541,7 @@ TEST_CASE("parse/variable")
 
 	SUBCASE("Variable With Data and White-Space")
 	{
-		error = ztext::parse(" {{ var $ foo }} ", element);
+		error = ztext::parse("{{ var $ foo }}", element);
 		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
@@ -1503,11 +1555,11 @@ TEST_CASE("parse/variable")
 
 	SUBCASE("Variable With Cleaned Data")
 	{
-		error = ztext::parse(" {{ var$  \
+		error = ztext::parse("{{ var$  \
 			foo		\
 			\\{{123\\}}	\
 			bar		\
-			}} ", element);
+			}}", element);
 		CHECK(error == ztext::Error_None);
 
 		CHECK(element       != nullptr);
@@ -1544,7 +1596,8 @@ TEST_CASE("parse/variable")
 		ztext::element_destroy_all(var);
 	}
 
-	SUBCASE("Variable With Nested Variables Recursive")
+	/*
+	SUBCASE("Variable Recursive")
 	{
 		ztext::Element* var = nullptr;
 		error = ztext::parse("{{foo$ {{bar$ {{foo$}} }} }}", var);
@@ -1553,6 +1606,20 @@ TEST_CASE("parse/variable")
 		CHECK(ztext::eval(zt, var) == "");
 
 		ztext::element_destroy_all(var);
+	}
+	*/
+
+	SUBCASE("Variable Reuse")
+	{
+		ztext::Element* doc = nullptr;
+		error = ztext::parse("{{ name$ Billy Bob }} lives at {{ place$ {{name$}}'s House }}. \
+			{{ name$ Johnny Ray }} lives at {{ place$ }}."
+			, doc);
+		CHECK(error == ztext::Error_None);
+
+		CHECK(ztext::eval(zt, doc) == "Billy Bob lives at Billy Bob's House. Johnny Ray lives at Johnny Ray's House.");
+
+		ztext::element_destroy_all(doc);
 	}
 
 	destroy(zt);
@@ -2558,7 +2625,7 @@ printf("--- 4 --- %p\n", (void*)element);
 			CHECK(error == Error_None);
 			
 			ztext::Element* element = ztext::element_next(root);
-			CHECK(ztext::element_eval(element) == "foo");
+			CHECK(ztext::element_eval(element) == " foo ");
 		}
 
 		SUBCASE("Escaped Token")
