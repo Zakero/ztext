@@ -394,31 +394,21 @@ print(element, true);
 
 		if(element->child != nullptr)
 		{
+			std::string retval = eval(ztext, element->child);
+
 			ztext->variable[element->text] = element->child;
+
+			return retval;
 		}
 
-		if(ztext->variable.contains(element->text) == false)
+		if(ztext->variable.contains(element->text) == true)
 		{
-			return "";
+			std::string retval = eval(ztext, ztext->variable[element->text]);
+
+			return retval;
 		}
 
-		std::string retval = eval(ztext, ztext->variable[element->text]);
-
-		//if(ztext->variable.contains(element->text) == false)
-		//{
-		//	ztext->variable[element->text] = "";
-		//}
-
-		//if(element->child == nullptr)
-		//{
-		//	std::string retval = ztext->variable[element->text];
-		//	return retval;
-		//}
-
-		//std::string retval = eval(ztext, element->child);
-		//ztext->variable[element->text] = retval;
-
-		return retval;
+		return "";
 	}
 }
 
@@ -1596,7 +1586,6 @@ TEST_CASE("parse/variable")
 		ztext::element_destroy_all(var);
 	}
 
-	/*
 	SUBCASE("Variable Recursive")
 	{
 		ztext::Element* var = nullptr;
@@ -1607,7 +1596,6 @@ TEST_CASE("parse/variable")
 
 		ztext::element_destroy_all(var);
 	}
-	*/
 
 	SUBCASE("Variable Reuse")
 	{
