@@ -45,7 +45,6 @@
  *
  * -------------------------------------------------------------------------
  *
- * Cache needs to store a copy of the variables
  * Rename ZTEXT_DEBUG_ENABLED to ZTEXT_ERROR_CHECKS_ENABLED
  * Add ZTEXT_ERROR_MESSAGES_ENABLED
  */
@@ -147,8 +146,9 @@ namespace ztext
 	[[]]          void            destroy(ZText*&) noexcept;
 	[[]]          void            cache_clear(ZText*) noexcept;
 	[[]]          void            cache_variable_clear_all(ZText*) noexcept;
-	//[[]]          std::string     cache_variable_eval(ZText*, const std::string) noexcept;
 	[[]]          VectorString    cache_variable_list(ZText*) noexcept;
+	//[[]]          std::string     cache_variable_eval(ZText* ztext, const std::string& name) noexcept;
+	//[[]]          void            cache_variable_set(ZText* ztext, const std::string& name, Element* element_chain, bool read_only = false) noexcept;
 
 	// --- Evaluation --- //
 	[[nodiscard]] std::string     eval(ZText*, Element*, bool = true) noexcept;
@@ -367,6 +367,78 @@ namespace
 }
 
 // }}}
+// {{{ Private: Element Utilities
+
+namespace
+{
+	void            element_init_(ztext::Element*) noexcept;
+	ztext::Element* element_copy_(ztext::Element*) noexcept;
+	ztext::Element* element_copy_all_(ztext::Element*) noexcept;
+
+	ztext::Element* element_copy_(ztext::Element* element
+		) noexcept
+	{
+		ztext::Element* retval = new ztext::Element;
+		element_init_(retval);
+		
+		retval->property = element->property;
+		retval->text     = element->text;
+		retval->type     = element->type;
+
+		if(element->child != nullptr)
+		{
+			retval->child = element_copy_all_(element->child);
+		}
+
+		return retval;
+	}
+
+
+	ztext::Element* element_copy_all_(ztext::Element* element
+		) noexcept
+	{
+		ztext::Element* retval = nullptr;
+		ztext::Element* tail   = nullptr;
+
+		while(element != nullptr)
+		{
+			ztext::Element* tmp = element_copy_(element);
+
+			if(retval == nullptr)
+			{
+				[[unlikely]];
+				retval = tmp;
+				tail   = tmp;
+			}
+			else
+			{
+				element_append(tail, tmp);
+				tail = tmp;
+			}
+
+			element = element->next;
+		}
+printf("%s\n", __FUNCTION__);
+ztext::print(retval, true);
+
+		return retval;
+	}
+
+
+	inline void element_init_(ztext::Element* element
+		) noexcept
+	{
+		element->next     = nullptr;
+		element->prev     = nullptr;
+		element->child    = nullptr;
+		element->parent   = nullptr;
+		element->property = {};
+		element->text     = {};
+		element->type     = ztext::Type::Text;
+	}
+}
+
+// }}}
 // {{{ Private: Evaluation: Variable
 
 namespace
@@ -382,7 +454,13 @@ print(element, true);
 		{
 			std::string retval = eval(ztext, element->child);
 
-			ztext->variable[element->text] = element->child;
+			if(ztext->variable.contains(element->text) == true)
+			{
+				element_destroy_all(ztext->variable[element->text]);
+			}
+
+			ztext::Element* content = element_copy_all_(element->child);
+			ztext->variable[element->text] = content;
 
 			return retval;
 		}
@@ -395,24 +473,6 @@ print(element, true);
 		}
 
 		return "";
-	}
-}
-
-// }}}
-// {{{ Private: Element Utilities
-
-namespace
-{
-	inline void element_init_(ztext::Element* element
-		) noexcept
-	{
-		element->next     = nullptr;
-		element->prev     = nullptr;
-		element->child    = nullptr;
-		element->parent   = nullptr;
-		element->property = {};
-		element->text     = {};
-		element->type     = ztext::Type::Text;
 	}
 }
 
