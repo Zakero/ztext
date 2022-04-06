@@ -44,7 +44,6 @@
  *
  * -------------------------------------------------------------------------
  *
- * Implement "Element: Variable" Tests
  * Implement clearing the ZText variable cache
  */
 
@@ -685,7 +684,6 @@ printf("%lu %lu '%s'\n", begin, end, string.substr(begin, (end - begin + 1)).c_s
 					&& string[index + 1] == Token_Begin
 					)
 				{
-					index--;
 					break;
 				}
 			}
@@ -705,6 +703,7 @@ printf("%lu %lu '%s'\n", begin, end, string.substr(begin, (end - begin + 1)).c_s
 			index++;
 		}
 
+		index--;
 		std::string text = string_substr_(string, begin, index);
 		text = string_clean_whitespace_(text);
 
@@ -2234,6 +2233,14 @@ TEST_CASE("element/text/set")
 ztext::Element* ztext::element_variable_create(const std::string& name
 	) noexcept
 {
+	for(size_t index = 0; index < name.size(); index++)
+	{
+		if(is_valid_token_name_character_(name[index]) == false)
+		{
+			return nullptr;
+		}
+	}
+
 	ztext::Element* element = new ztext::Element;
 
 	element->type = ztext::Type::Variable;
@@ -2247,7 +2254,10 @@ TEST_CASE("element/variable/create")
 {
 	ztext::ZText* zt = ztext::create();
 
-	ztext::Element* var = ztext::element_variable_create("var");
+	ztext::Element* var = ztext::element_variable_create("v{r");
+	CHECK(var == nullptr);
+
+	var = ztext::element_variable_create("var");
 	CHECK(ztext::eval(zt, var) == "");
 	ztext::element_destroy(var);
 
@@ -2268,9 +2278,7 @@ std::error_code ztext::element_variable_set(Element* element
 
 		return Error_Invalid_Parameter;
 	}
-	#endif
 
-	#if ZTEXT_DEBUG_ENABLED
 	if(element->type != ztext::Type::Variable)
 	{
 		ZTEXT_ERROR
@@ -2296,6 +2304,8 @@ std::error_code ztext::element_variable_set(Element* element
 	) noexcept
 {
 printf("%s\n", __FUNCTION__);
+printf("- %lu %c\n", begin, string[begin]);
+printf("- %lu %c\n", end  , string[end]);
 	#if ZTEXT_DEBUG_ENABLED
 	if(element == nullptr)
 	{
@@ -2323,20 +2333,41 @@ printf("%s\n", __FUNCTION__);
 
 	if(error != ztext::Error_None)
 	{
-		while(child != nullptr)
-		{
-			child = ztext::element_destroy(child);
-		}
+		ztext::element_destroy_all(child);
 
 		return error;
 	}
+
+	error = ztext::element_variable_set(element, child);
+
+	element->child = child;
+
+	return error;
+}
+
+
+std::error_code ztext::element_variable_set(Element* element
+	, Element* content
+	) noexcept
+{
+printf("%s\n", __FUNCTION__);
+	#if ZTEXT_DEBUG_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+	#endif
 
 	while(element->child != nullptr)
 	{
 		element->child = ztext::element_destroy(element->child);
 	}
 
-	element->child = child;
+	element->child = content;
 
 	return ztext::Error_None;
 }
@@ -2344,7 +2375,53 @@ printf("%s\n", __FUNCTION__);
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
 TEST_CASE("element/variable/set")
 {
-	ztext::ZText* zt = ztext::create();
+	ztext::ZText*   zt    = ztext::create();
+	ztext::Element* var   = nullptr;
+	std::error_code error = {};
+
+	SUBCASE("Invalid")
+	{
+		error = ztext::element_variable_set(var, "foo");
+		CHECK(error == ztext::Error_Invalid_Parameter);
+
+		var = ztext::element_text_create("text");
+		error = ztext::element_variable_set(var, "foo");
+		CHECK(error == ztext::Error_Element_Type_Not_Variable);
+		ztext::element_destroy(var);
+	}
+
+	SUBCASE("String")
+	{
+		var = ztext::element_variable_create("var");
+		
+		error = ztext::element_variable_set(var, "abcdef");
+		CHECK(error == ztext::Error_None);
+		CHECK(ztext::eval(zt, var) == "abcdef");
+
+		error = ztext::element_variable_set(var, "abcdef", 1, 4);
+		CHECK(error == ztext::Error_None);
+		CHECK(ztext::eval(zt, var) == "bcde");
+
+		ztext::element_destroy(var);
+	}
+
+	SUBCASE("Element")
+	{
+		var = ztext::element_variable_create("var");
+		
+		error = ztext::element_variable_set(var, nullptr);
+		CHECK(error == ztext::Error_None);
+		CHECK(ztext::eval(zt, var) == "");
+
+		std::string text = "   foo   ";
+		error = ztext::element_variable_set(var
+			, ztext::element_text_create(text)
+			);
+		CHECK(error == ztext::Error_None);
+		CHECK(ztext::eval(zt, var) == text);
+
+		ztext::element_destroy(var);
+	}
 
 	destroy(zt);
 }
