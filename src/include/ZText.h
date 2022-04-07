@@ -45,6 +45,8 @@
  *
  * -------------------------------------------------------------------------
  *
+ * Add Command Lambdas
+ * Parse Command Elements
  */
 
 
@@ -93,21 +95,25 @@
  *    The text that will be used by `std::error_code.message()`
  */
 #define ZTEXT__ERROR_DATA \
-	X(Error_None                               ,  0 , "No Error"               ) \
-	X(Error_Invalid_Parameter                  ,  1 , "A parameter is invalid" ) \
-	X(Error_Element_In_Use                     ,  2 , "The requested Element is in use by another ZText object" ) \
-	X(Error_Element_Type_Not_Text              ,  3 , "The expected Element type is text" ) \
-	X(Error_Element_Type_Not_Variable          ,  4 , "The expected Element type is a variable" ) \
-	X(Error_Parser_Token_Name_Invalid          ,  5 , "The Parser found an invalid token name" ) \
-	X(Error_Parser_No_Text_Found               ,  6 , "The Parser was not able to find any text" ) \
-	X(Error_Parser_Token_End_Marker_Missing    ,  7 , "The Parser was not able to find the token end marker '}}'" ) \
-	X(Error_Parser_Token_Name_Missing          ,  8 , "The Parser was not able to find the token name"        ) \
-	X(Error_Parser_Token_Identifier_Invalid    ,  9 , "The Parser found an invalid token identifier" ) \
-	X(Error_Parser_Token_Begin_Marker_Missing  , 10 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
+	X(Error_None                                       ,  0 , "No Error"               ) \
+	X(Error_Invalid_Parameter                          ,  1 , "A parameter is invalid" ) \
+	X(Error_Element_In_Use                             ,  2 , "The requested Element is in use by another ZText object" ) \
+	X(Error_Element_Type_Not_Command                   ,  3 , "The expected Element type is command" ) \
+	X(Error_Element_Type_Not_Text                      ,  4 , "The expected Element type is text" ) \
+	X(Error_Element_Type_Not_Variable                  ,  5 , "The expected Element type is a variable" ) \
+	X(Error_Parser_Token_Name_Invalid                  ,  6 , "The Parser found an invalid token name" ) \
+	X(Error_Parser_No_Text_Found                       ,  7 , "The Parser was not able to find any text" ) \
+	X(Error_Parser_Token_End_Marker_Missing            ,  8 , "The Parser was not able to find the token end marker '}}'" ) \
+	X(Error_Parser_Token_Name_Missing                  ,  9 , "The Parser was not able to find the token name"        ) \
+	X(Error_Parser_Token_Identifier_Invalid            , 10 , "The Parser found an invalid token type" ) \
+	X(Error_Parser_Token_Begin_Marker_Missing          , 11 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
+	X(Error_Parser_Command_Property_End_Marker_Missing , 12 , "The Parser was not able to find the command property end marker ')'" ) \
 
 
 // }}}
 
+
+#define ZTextCommandLambda(...) [__VA_ARGS__](ztext::ZText* ztext, ztext::Element* element) -> std::string
 
 namespace ztext
 {
@@ -148,8 +154,9 @@ namespace ztext
 	[[]]          VectorString    cache_variable_list(ZText*) noexcept;
 	//[[]]          std::string     cache_variable_eval(ZText* ztext, const std::string& name) noexcept;
 	//[[]]          void            cache_variable_set(ZText* ztext, const std::string& name, Element* element_chain, bool read_only = false) noexcept;
-	//[[]]          void            command_create(ZText*, const std::string&, const ztext::CommandLambda) noexcept;
-	//[[]]          void            command_destroy(ZText*, const std::string&) noexcept;
+	[[]]          void            command_create(ZText*, std::string, ztext::CommandLambda) noexcept;
+	[[]]          void            command_destroy(ZText*, std::string) noexcept;
+	[[]]          void            command_destroy_all(ZText*) noexcept;
 
 	// --- Evaluation --- //
 	[[nodiscard]] std::string     eval(ZText*, Element*, bool = true) noexcept;
@@ -168,11 +175,13 @@ namespace ztext
 	[[nodiscard]] Element*        element_find_head(Element*) noexcept;
 	[[nodiscard]] Element*        element_find_tail(Element*) noexcept;
 
-	//[[]]          void            element_command_create(const std::string&) noexcept;
-	//[[nodiscard]] Element*        element_command_content(Element*) noexcept;
-	//[[]]          std::error_code element_command_content_set(Element*, Element*) noexcept;
+	[[nodiscard]] Element*        element_command_create(const std::string&) noexcept;
+	[[nodiscard]] Element*        element_command_content(Element*) noexcept;
+	[[]]          std::error_code element_command_content_set(Element*, const std::string&) noexcept;
+	[[]]          std::error_code element_command_content_set(Element*, const std::string&, size_t, size_t) noexcept;
+	[[]]          std::error_code element_command_content_set(Element*, Element*) noexcept;
 	//[[nodiscard]] MapStringString element_command_property(Element*) noexcept;
-	//[[]]          void            element_command_property_set(Element*, std::string, const std::string) noexcept;
+	[[]]          void            element_command_property_set(Element*, std::string, std::string) noexcept;
 
 	[[nodiscard]] Element*        element_text_create(const std::string&) noexcept;
 	[[]]          std::error_code element_text_set(Element*, const std::string&) noexcept;
@@ -247,7 +256,6 @@ namespace ztext
 	 */
 	__attribute__((visibility ("hidden")))
 	ErrorCategory_ ErrorCategory;
-
 }
 
 // }}}
@@ -260,7 +268,6 @@ namespace ztext
 	,	Variable
 	,	Command
 	};
-
 
 	struct Element
 	{
@@ -318,8 +325,9 @@ namespace
 		size_t property_end   = 0;
 		size_t content_begin  = 0;
 		size_t content_end    = 0;
-		size_t identifier     = 0;
+		size_t type_index     = 0;
 		size_t assignment     = 0;
+		char   type           = 0;
 		bool   is_valid       = false;
 	};
 }
@@ -347,13 +355,21 @@ namespace
 			, token.name_end
 			, (token.name_begin >= token.name_end || token.name_begin >= len || token.name_end >= len) ? "" : std::string(string.substr(token.name_begin, (token.name_end - token.name_begin + 1))).c_str()
 			);
-		printf("identifier: %lu '%c'\n"
-			, token.identifier
-			, (token.identifier == 0 || token.identifier >= len || token.identifier >= len) ? '\0' : string[token.identifier]
+		printf("type_index: %lu '%c'\n"
+			, token.type_index
+			, (token.type_index == 0 || token.type_index >= len || token.type_index >= len) ? '\0' : string[token.type_index]
+			);
+		printf("type      : '%c'\n"
+			, token.type
 			);
 		printf("assignment: %lu '%c'\n"
 			, token.assignment
 			, (token.assignment == 0 || token.assignment >= len || token.assignment >= len) ? '\0' : string[token.assignment]
+			);
+		printf("property  : %lu,%lu '%s'\n"
+			, token.property_begin
+			, token.property_end
+			, (token.property_begin >= token.property_end || token.property_begin >= len || token.property_end >= len) ? "" : std::string(string.substr(token.property_begin, (token.property_end - token.property_begin + 1))).c_str()
 			);
 		printf("content   : %lu,%lu '%s'\n"
 			, token.content_begin
@@ -376,7 +392,6 @@ namespace
 		) noexcept
 	{
 		ztext::Element* retval = new ztext::Element;
-		element_init_(retval);
 		
 		retval->property = element->property;
 		retval->text     = element->text;
@@ -430,6 +445,32 @@ namespace
 		element->property = {};
 		element->text     = {};
 		element->type     = ztext::Type::Text;
+	}
+}
+
+// }}}
+// {{{ Private: Evaluation: Command
+
+namespace
+{
+	std::string element_eval_command_(ztext::ZText* ztext
+		, ztext::Element* element
+		) noexcept
+	{
+		if(ztext->command.contains(element->text) == false)
+		{
+			ZTEXT_ERROR_MESSAGE
+				<< "Error: Command '"
+				<< element->text
+				<< "' not found."
+				<< '\n';
+
+			return "";
+		}
+
+		std::string retval = ztext->command[element->text](ztext, element);
+
+		return retval;
 	}
 }
 
@@ -605,6 +646,7 @@ namespace
 	std::error_code parse_token_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
 	std::error_code parse_token_identifier_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_name_(Token&, const std::string&) noexcept;
+	std::error_code parse_token_command_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_variable_(Token&, const std::string&) noexcept;
 
 	// {{{ Private: Parse
@@ -735,6 +777,7 @@ namespace
 		size_t          depth       = 0;
 
 		// --- Find Token End --- //
+
 		while(index_end <= end)
 		{
 			if(string[index_end] == Token_Begin
@@ -792,13 +835,37 @@ namespace
 
 		if(error != ztext::Error_None)
 		{
-			begin = token.identifier;
+			begin = token.type_index;
 			return error;
+		}
+
+		// --- Token: Command --- //
+
+		if(token.type == Identifier_Command)
+		{
+printf("%s\n", __FUNCTION__);
+debug(token, string);
+			parse_token_command_(token, string);
+debug(token, string);
+			element = ztext::element_command_create(
+				substr_(string, token.name_begin, token.name_end)
+				);
+
+			if(token.content_begin != 0)
+			{
+				error = ztext::element_command_content_set(element
+					, substr_(string
+						, token.content_begin
+						, token.content_end
+						)
+					);
+			}
+print(element, true);
 		}
 
 		// --- Token: Variable --- //
 
-		if(string[token.identifier] == Identifier_Variable)
+		if(token.type == Identifier_Variable)
 		{
 			parse_token_variable_(token, string);
 			element = ztext::element_variable_create(
@@ -840,6 +907,21 @@ namespace
 	}
 
 
+	inline bool token_name_is_valid(const std::string& string
+		) noexcept
+	{
+		for(const unsigned char c : string)
+		{
+			if(is_valid_token_name_character_(c) == false)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+
 	std::error_code parse_token_name_(Token& token
 		, const std::string& string
 		) noexcept
@@ -878,11 +960,80 @@ namespace
 		) noexcept
 	{
 		size_t index = whitespace_skip_leading_(string, token.name_end + 1);
-		token.identifier = index;
+		token.type_index = index;
 
-		if(string[index] != Identifier_Variable)
+		if(string[index] == Identifier_Variable)
 		{
-			return ztext::Error_Parser_Token_Identifier_Invalid;
+			token.type = Identifier_Variable;
+			return ztext::Error_None;
+		}
+
+		token.type = Identifier_Command;
+		return ztext::Error_None;
+		//return ztext::Error_Parser_Token_Identifier_Invalid;
+	}
+
+	// }}}
+	// {{{ Private: Parse: Token: Command
+
+	std::error_code parse_token_command_(Token& token
+		, const std::string& string
+		) noexcept
+	{
+		if(string[token.type_index] == Token_End)
+		{
+			return ztext::Error_None;
+		}
+
+		size_t index = token.type_index;
+
+		if(string[index] == Dataset_Map_Begin)
+		{
+			token.property_begin = index;
+			index++;
+
+			size_t depth       = 0;
+
+			while(index <= token.end)
+			{
+				if(string[index] == Dataset_Map_Begin
+					&& string[index - 1] != Token_Escape
+					)
+				{
+					depth++;
+				}
+
+				if(string[index] == Dataset_Map_End
+					&& string[index - 1] != Token_Escape
+					)
+				{
+					if(depth == 0)
+					{
+						break;
+					}
+
+					depth--;
+				}
+
+				index++;
+			}
+
+			if(index > token.end)
+			{
+				return ztext::Error_Parser_Command_Property_End_Marker_Missing;
+			}
+
+			token.property_end = index;
+
+			index++;
+		}
+
+		index = whitespace_skip_leading_(string, index);
+
+		if(string[index] != Token_End)
+		{
+			token.content_begin = index;
+			token.content_end   = whitespace_skip_trailing_(string, token.end - 2);
 		}
 
 		return ztext::Error_None;
@@ -895,7 +1046,7 @@ namespace
 		, const std::string& string
 		) noexcept
 	{
-		size_t index = whitespace_skip_leading_(string, token.identifier + 1);
+		size_t index = whitespace_skip_leading_(string, token.type_index + 1);
 
 		if(string[index] == Token_End)
 		{
@@ -975,7 +1126,6 @@ TEST_CASE("create")
 }
 #endif // }}}
 
-
 void ztext::destroy(ztext::ZText*& ztext
 	) noexcept
 {
@@ -989,6 +1139,7 @@ void ztext::destroy(ztext::ZText*& ztext
 	#endif
 
 	ztext::cache_clear(ztext);
+	ztext::command_destroy_all(ztext);
 
 	delete ztext;
 	ztext = nullptr;
@@ -1004,6 +1155,8 @@ TEST_CASE("destroy")
 }
 #endif // }}}
 
+// }}}
+// {{{ ZText: Cache
 
 void ztext::cache_clear(ztext::ZText* ztext
 	) noexcept
@@ -1041,7 +1194,6 @@ TEST_CASE("cache/clear")
 	destroy(zt);
 }
 #endif // }}}
-
 
 void ztext::cache_variable_clear_all(ztext::ZText* ztext
 	) noexcept
@@ -1086,7 +1238,6 @@ TEST_CASE("cache/variable/clear/all")
 }
 #endif // }}}
 
-
 ztext::VectorString ztext::cache_variable_list(ztext::ZText* ztext
 	) noexcept
 {
@@ -1123,6 +1274,124 @@ TEST_CASE("cache/variable/list")
 	CHECK(list[0]     == "name");
 
 	ztext::element_destroy(var);
+	destroy(zt);
+}
+#endif // }}}
+
+// }}}
+// {{{ ZText: Commands
+
+void ztext::command_create(ztext::ZText* ztext
+	, std::string          name
+	, ztext::CommandLambda lambda
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+
+	if(token_name_is_valid(name) == false)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' is not valid."
+			<< '\n';
+	}
+
+	if(lambda == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'lambda' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	ztext->command[name] = lambda;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("ztext/command/create")
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+}
+#endif // }}}
+
+void ztext::command_destroy(ztext::ZText* ztext
+	, std::string name
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+
+	if(token_name_is_valid(name) == false)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' is not valid."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->command.contains(name) == false)
+	{
+		return;
+	}
+
+	ztext->command.erase(name);
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("ztext/command/destroy")
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+}
+#endif // }}}
+
+void ztext::command_destroy_all(ztext::ZText* ztext
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	ztext->command.clear();
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("ztext/command/destroy")
+{
+	ztext::ZText* zt = ztext::create();
+
 	destroy(zt);
 }
 #endif // }}}
@@ -1166,8 +1435,7 @@ std::string ztext::eval(ztext::ZText* ztext
 				break;
 
 			case ztext::Type::Command:
-				ZTEXT_ERROR_MESSAGE << "Not Implemented\n";
-				//retval += element_eval_command_(ztext, element);
+				retval += element_eval_command_(ztext, element);
 				break;
 		}
 
@@ -1257,6 +1525,113 @@ std::error_code ztext::parse(const std::string& string
 	return Error_None;
 }
 
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/command
+TEST_CASE("parse/command")
+{
+	ztext::ZText*   zt      = ztext::create();
+	ztext::Element* element = nullptr;
+	std::error_code error   = {};
+
+#if 0
+	SUBCASE("Simple")
+	{
+		ztext::command_create(zt
+			, "cmd"
+			, ZTextCommandLambda()
+			{
+				return "text";
+			});
+
+		SUBCASE("Property and Content: None")
+		{
+			error = ztext::parse("{{cmd}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "text");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Content: Unused")
+		{
+			error = ztext::parse("{{cmd foo bar}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "text");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property: Unused")
+		{
+			error = ztext::parse("{{cmd(key=value)}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "text");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property and Content: Unused")
+		{
+			error = ztext::parse("{{cmd(key=value)foo bar}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "text");
+			ztext::element_destroy_all(element);
+		}
+	}
+#endif
+
+	SUBCASE("Content")
+	{
+		ztext::command_create(zt
+			, "cmd_c"
+			, ZTextCommandLambda()
+			{
+				ztext::Element* content
+					= ztext::element_command_content(element);
+
+				std::string str = "";
+				if(content != nullptr)
+				{
+					str = ztext::eval(ztext, content);
+				}
+
+				std::string retval = "--" + str + "--";
+
+				return retval;
+			});
+
+		SUBCASE("Property and Content: None")
+		{
+			error = ztext::parse("{{cmd_c}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "----");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Content")
+		{
+			error = ztext::parse("{{cmd_c foo bar}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "--foo bar--");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property: Unused")
+		{
+			error = ztext::parse("{{cmd_c(key=value)}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "----");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property Unused with Content")
+		{
+			error = ztext::parse("{{cmd_c(key=value) foo bar }}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "--foo bar--");
+			ztext::element_destroy_all(element);
+		}
+	}
+
+	ztext::destroy(zt);
+}
+#endif // }}}
 #ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/text
 TEST_CASE("parse/text")
 {
@@ -2122,6 +2497,210 @@ TEST_CASE("element/find/tail")
 	ztext::element_destroy(foo);
 	ztext::element_destroy(bar);
 	ztext::element_destroy(xyz);
+}
+#endif // }}}
+
+// }}}
+// {{{ Element: Command
+
+ztext::Element* ztext::element_command_create(const std::string& name
+	) noexcept
+{
+	ztext::Element* element = new ztext::Element;
+
+	element->type = ztext::Type::Command;
+	element->text = name;
+
+	return element;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/command/create")
+{
+	ztext::ZText* zt = ztext::create();
+
+	ztext::destroy(zt);
+}
+#endif // }}}
+
+ztext::Element* ztext::element_command_content(Element* element
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+	}
+
+	if(element->type != ztext::Type::Command)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'command'"
+			<< '\n';
+	}
+	#endif
+
+	return element->child;
+}
+
+std::error_code ztext::element_command_content_set(Element* element
+	, const std::string& string
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+
+	if(element->type != ztext::Type::Command)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'command'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Command;
+	}
+	#endif
+
+	std::error_code error = {};
+
+	error = element_command_content_set(element, string, 0, string.size() - 1);
+
+	return error;
+}
+
+
+std::error_code ztext::element_command_content_set(Element* element
+	, const std::string& string
+	, size_t             begin
+	, size_t             end
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+
+	if(element->type != ztext::Type::Command)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'command'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Command;
+	}
+	#endif
+
+	std::error_code error = {};
+	Element*        child = nullptr;
+
+	error = parse_(string, begin, end, child);
+
+	if(error != ztext::Error_None)
+	{
+		ztext::element_destroy_all(child);
+
+		return error;
+	}
+
+	error = ztext::element_command_content_set(element, child);
+
+	element->child = child;
+
+	return error;
+}
+
+std::error_code ztext::element_command_content_set(Element* element
+	, Element* content
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+
+	if(element->type != ztext::Type::Command)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'command'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Command;
+	}
+	#endif
+
+	if(element->child != nullptr)
+	{
+		element_destroy_all(element->child);
+	}
+
+	element->child = content;
+
+	return Error_None;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/command/content/set")
+{
+	ztext::ZText* zt = ztext::create();
+
+	ztext::destroy(zt);
+}
+#endif // }}}
+
+void ztext::element_command_property_set(Element* element
+	, std::string key
+	, std::string value
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		//return Error_Invalid_Parameter;
+	}
+
+	if(element->type != ztext::Type::Command)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'command'"
+			<< '\n';
+
+		//return Error_Element_Type_Not_Command;
+	}
+	#endif
+
+	element->property[key] = value;
+
+	//return Error_None;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
+TEST_CASE("element/command/content/set")
+{
+	ztext::ZText* zt = ztext::create();
+
+	ztext::destroy(zt);
 }
 #endif // }}}
 
