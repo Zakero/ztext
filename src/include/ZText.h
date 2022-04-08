@@ -57,9 +57,10 @@
 // C++
 #include <functional>
 #include <source_location>
-#include <string>
 #include <stack>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 // POSIX
 
@@ -1115,16 +1116,16 @@ ztext::ZText* ztext::create() noexcept
 	return ztext;
 };
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("create")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/create/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
 	CHECK(zt != nullptr);
 
 	ztext::destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 void ztext::destroy(ztext::ZText*& ztext
 	) noexcept
@@ -1145,15 +1146,15 @@ void ztext::destroy(ztext::ZText*& ztext
 	ztext = nullptr;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("destroy")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/destroy/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 	ztext::destroy(zt);
 
 	CHECK(zt == nullptr);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ ZText: Cache
@@ -1173,8 +1174,8 @@ void ztext::cache_clear(ztext::ZText* ztext
 	ztext::cache_variable_clear_all(ztext);
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("cache/clear")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/cache/clear/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -1192,8 +1193,8 @@ TEST_CASE("cache/clear")
 	CHECK(list.empty() == true);
 
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 void ztext::cache_variable_clear_all(ztext::ZText* ztext
 	) noexcept
@@ -1215,8 +1216,8 @@ void ztext::cache_variable_clear_all(ztext::ZText* ztext
 	ztext->variable.clear();
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("cache/variable/clear/all")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/cache/variable/clear/all/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -1235,8 +1236,8 @@ TEST_CASE("cache/variable/clear/all")
 	ztext::element_destroy(var);
 
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 ztext::VectorString ztext::cache_variable_list(ztext::ZText* ztext
 	) noexcept
@@ -1259,8 +1260,8 @@ ztext::VectorString ztext::cache_variable_list(ztext::ZText* ztext
 	return retval;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("cache/variable/list")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/cache/variable/list/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -1275,8 +1276,8 @@ TEST_CASE("cache/variable/list")
 
 	ztext::element_destroy(var);
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ ZText: Commands
@@ -1319,14 +1320,14 @@ void ztext::command_create(ztext::ZText* ztext
 	ztext->command[name] = lambda;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("ztext/command/create")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/command/create/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 void ztext::command_destroy(ztext::ZText* ztext
 	, std::string name
@@ -1363,14 +1364,14 @@ void ztext::command_destroy(ztext::ZText* ztext
 	ztext->command.erase(name);
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("ztext/command/destroy")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/command/destroy/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 void ztext::command_destroy_all(ztext::ZText* ztext
 	) noexcept
@@ -1387,14 +1388,14 @@ void ztext::command_destroy_all(ztext::ZText* ztext
 	ztext->command.clear();
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("ztext/command/destroy")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/command/destroy/all/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ Evaluation
@@ -1452,8 +1453,8 @@ std::string ztext::eval(ztext::ZText* ztext
 	return retval;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("eval/text")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/eval/text/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -1480,8 +1481,8 @@ TEST_CASE("eval/text")
 	}
 
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ Parse
@@ -1525,8 +1526,8 @@ std::error_code ztext::parse(const std::string& string
 	return Error_None;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/command
-TEST_CASE("parse/command")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/parse/command/") // {{{
 {
 	ztext::ZText*   zt      = ztext::create();
 	ztext::Element* element = nullptr;
@@ -1630,10 +1631,8 @@ TEST_CASE("parse/command")
 	}
 
 	ztext::destroy(zt);
-}
-#endif // }}}
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/text
-TEST_CASE("parse/text")
+} // }}}
+TEST_CASE("/parse/text/") // {{{
 {
 	ztext::ZText*   zt      = ztext::create();
 	ztext::Element* element = nullptr;
@@ -1801,10 +1800,8 @@ TEST_CASE("parse/text")
 	}
 
 	destroy(zt);
-}
-#endif // }}}
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{ parse/variable
-TEST_CASE("parse/variable")
+} // }}}
+TEST_CASE("/parse/variable/") // {{{
 {
 	ztext::ZText*   zt      = ztext::create();
 	ztext::Element* element = nullptr;
@@ -1971,8 +1968,8 @@ TEST_CASE("parse/variable")
 	}
 
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ Element
@@ -2036,8 +2033,8 @@ std::error_code ztext::element_append(ztext::Element* position
 	return Error_None;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/append")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/append/") // {{{
 {
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
@@ -2067,8 +2064,8 @@ TEST_CASE("element/append")
 	ztext::element_destroy(bar);
 	ztext::element_destroy(abc);
 	ztext::element_destroy(xyz);
-}
-#endif // }}}
+} // }}}
+#endif
 
 
 std::error_code ztext::element_insert(ztext::Element* position
@@ -2130,8 +2127,8 @@ std::error_code ztext::element_insert(ztext::Element* position
 	return Error_None;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/insert")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/insert/") // {{{
 {
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
@@ -2161,8 +2158,8 @@ TEST_CASE("element/insert")
 	ztext::element_destroy(bar);
 	ztext::element_destroy(abc);
 	ztext::element_destroy(xyz);
-}
-#endif // }}}
+} // }}}
+#endif
 
 
 ztext::Element* ztext::element_destroy(ztext::Element*& element
@@ -2216,8 +2213,8 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 	return retval;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/destroy")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/destroy/") // {{{
 {
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
@@ -2239,8 +2236,8 @@ TEST_CASE("element/destroy")
 
 	ztext::element_destroy(foo);
 	CHECK(foo == nullptr);
-}
-#endif // }}}
+} // }}}
+#endif
 
 
 void ztext::element_destroy_all(ztext::Element*& element
@@ -2261,8 +2258,8 @@ void ztext::element_destroy_all(ztext::Element*& element
 	}
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/destroy/all")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/destroy/all/") // {{{
 {
 	// Must be run in Valgrind to check for memory leaks
 	ztext::Element* foo = ztext::element_text_create("foo");
@@ -2274,8 +2271,8 @@ TEST_CASE("element/destroy/all")
 
 	ztext::element_destroy_all(foo);
 	CHECK(foo == nullptr);
-}
-#endif // }}}
+} // }}}
+#endif
 
 
 void ztext::element_remove(ztext::Element* element
@@ -2313,8 +2310,8 @@ void ztext::element_remove(ztext::Element* element
 	element->parent = nullptr;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/remove")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/remove/") // {{{
 {
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
@@ -2336,8 +2333,8 @@ TEST_CASE("element/remove")
 	ztext::element_destroy(foo);
 	ztext::element_destroy(bar);
 	ztext::element_destroy(xyz);
-}
-#endif // }}}
+} // }}}
+#endif
 
 
 ztext::Element* ztext::element_next(ztext::Element* element
@@ -2355,8 +2352,8 @@ ztext::Element* ztext::element_next(ztext::Element* element
 	return element->next;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/next")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/next/") // {{{
 {
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
@@ -2373,8 +2370,8 @@ TEST_CASE("element/next")
 
 	ztext::element_destroy(foo);
 	ztext::element_destroy(bar);
-}
-#endif // }}}
+} // }}}
+#endif
 
 
 ztext::Element* ztext::element_prev(ztext::Element* element
@@ -2392,8 +2389,8 @@ ztext::Element* ztext::element_prev(ztext::Element* element
 	return element->prev;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/prev")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/prev/") // {{{
 {
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
@@ -2410,8 +2407,8 @@ TEST_CASE("element/prev")
 
 	ztext::element_destroy(foo);
 	ztext::element_destroy(bar);
-}
-#endif // }}}
+} // }}}
+#endif
 
 
 ztext::Element* ztext::element_find_head(ztext::Element* element
@@ -2434,8 +2431,8 @@ ztext::Element* ztext::element_find_head(ztext::Element* element
 	return element;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/find/head")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/find/head/") // {{{
 {
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
@@ -2454,8 +2451,8 @@ TEST_CASE("element/find/head")
 	ztext::element_destroy(foo);
 	ztext::element_destroy(bar);
 	ztext::element_destroy(xyz);
-}
-#endif // }}}
+} // }}}
+#endif
 
 ztext::Element* ztext::element_find_tail(ztext::Element* element
 	) noexcept
@@ -2477,8 +2474,8 @@ ztext::Element* ztext::element_find_tail(ztext::Element* element
 	return element;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/find/tail")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/find/tail/") // {{{
 {
 	ztext::Element* foo = ztext::element_text_create("foo");
 	ztext::Element* bar = ztext::element_text_create("bar");
@@ -2497,8 +2494,8 @@ TEST_CASE("element/find/tail")
 	ztext::element_destroy(foo);
 	ztext::element_destroy(bar);
 	ztext::element_destroy(xyz);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ Element: Command
@@ -2514,14 +2511,14 @@ ztext::Element* ztext::element_command_create(const std::string& name
 	return element;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/command/create")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/command/create/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
 	ztext::destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 ztext::Element* ztext::element_command_content(Element* element
 	) noexcept
@@ -2656,14 +2653,14 @@ std::error_code ztext::element_command_content_set(Element* element
 	return Error_None;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/command/content/set")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/command/content/set/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
 	ztext::destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 void ztext::element_command_property_set(Element* element
 	, std::string key
@@ -2695,14 +2692,14 @@ void ztext::element_command_property_set(Element* element
 	//return Error_None;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/command/content/set")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/command/property/set/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
 	ztext::destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ Element: Text
@@ -2718,8 +2715,8 @@ ztext::Element* ztext::element_text_create(const std::string& text
 	return element;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/text/create")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/text/create/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -2738,8 +2735,8 @@ TEST_CASE("element/text/create")
 	}
 
 	ztext::destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 
 std::error_code ztext::element_text_set(Element* element
@@ -2771,8 +2768,8 @@ std::error_code ztext::element_text_set(Element* element
 	return Error_None;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/text/set")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/text/set/") // {{{
 {
 	ztext::Element* element = nullptr;
 
@@ -2808,8 +2805,8 @@ TEST_CASE("element/text/set")
 	}
 
 	ztext::destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ Element: Variable
@@ -2833,8 +2830,8 @@ ztext::Element* ztext::element_variable_create(const std::string& name
 	return element;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/variable/create")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/variable/create/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -2846,8 +2843,8 @@ TEST_CASE("element/variable/create")
 	ztext::element_destroy(var);
 
 	ztext::destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 std::error_code ztext::element_variable_set(Element* element
 	, const std::string& string
@@ -2952,8 +2949,8 @@ std::error_code ztext::element_variable_set(Element* element
 	return ztext::Error_None;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST // {{{
-TEST_CASE("element/variable/set")
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/variable/set/") // {{{
 {
 	ztext::ZText*   zt    = ztext::create();
 	ztext::Element* var   = nullptr;
@@ -3004,8 +3001,8 @@ TEST_CASE("element/variable/set")
 	}
 
 	destroy(zt);
-}
-#endif // }}}
+} // }}}
+#endif
 
 // }}}
 // {{{ Debugging
