@@ -1631,7 +1631,19 @@ TEST_CASE("/eval/command/") // {{{
 		, "cmd"
 		, ZTextCommandLambda(/* ztext, element */)
 		{
-			return "X";
+			std::string     retval  = {};
+			ztext::Element* content = nullptr;
+
+			content = ztext::element_command_content(element);
+
+			if(content != nullptr)
+			{
+				retval += ztext::eval(ztext, content);
+			}
+
+			retval += "X";
+
+			return retval;
 		});
 
 	SUBCASE("single")
@@ -1654,6 +1666,19 @@ TEST_CASE("/eval/command/") // {{{
 		ztext::element_destroy(foo);
 		ztext::element_destroy(bar);
 		ztext::element_destroy(zig);
+	}
+
+	SUBCASE("deep")
+	{
+		ztext::Element* foo = ztext::element_command_create("cmd");
+		ztext::Element* bar = ztext::element_command_create("cmd");
+		ztext::Element* zig = ztext::element_command_create("cmd");
+
+		ztext::element_command_content_set(foo, bar);
+		ztext::element_command_content_set(bar, zig);
+		CHECK(ztext::eval(zt, foo, true) == "XXX");
+
+		ztext::element_destroy(foo);
 	}
 
 	destroy(zt);
