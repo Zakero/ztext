@@ -50,6 +50,7 @@
  * - Remove element_command_content_set(element, string, begin, end)
  * - Remove element_variable_set(element, string)
  * - Remove element_variable_set(element, string, begin, end)
+ * Remove the "cache_" from the "ztext" function names
  */
 
 
@@ -112,6 +113,9 @@
 	X(Error_Parser_Token_Identifier_Invalid            , 10 , "The Parser found an invalid token type" ) \
 	X(Error_Parser_Token_Begin_Marker_Missing          , 11 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
 	X(Error_Parser_Command_Property_End_Marker_Missing , 12 , "The Parser was not able to find the command property end marker ')'" ) \
+	X(Error_Parser_Map_Begin_Marker_Missing            , 13 , "The Parser was not able to find the map begin marker '('" ) \
+	X(Error_Parser_Map_End_Marker_Missing              , 14 , "The Parser was not able to find the map end marker ')'" ) \
+	X(Error_Parser_Map_Key_Value_Pair_Missing          , 15 , "The Parser was not able to find the map's key/value pair" ) \
 
 
 // }}}
@@ -167,6 +171,8 @@ namespace ztext
 
 	// --- Parse --- //
 	[[]]          std::error_code  parse(const std::string&, Element*&) noexcept;
+	[[]]          std::error_code  parse(const std::string&, size_t, size_t, Element*&) noexcept;
+	[[]]          std::error_code  parse(const std::string&, ztext::MapStringString&) noexcept;
 	[[]]          std::error_code  parse(const std::string&, size_t, size_t, ztext::MapStringString&) noexcept;
 
 	// --- Element --- //
@@ -309,10 +315,13 @@ namespace
 	constexpr char Identifier_Array    = '@';
 	constexpr char Identifier_Map      = '#';
 
-	constexpr char Dataset_Array_Begin = '[';
-	constexpr char Dataset_Array_End   = ']';
-	constexpr char Dataset_Map_Begin   = '(';
-	constexpr char Dataset_Map_End     = ')';
+	constexpr char Dataset_Array_Begin     = '[';
+	constexpr char Dataset_Array_End       = ']';
+	constexpr char Dataset_Array_Separator = ',';
+	constexpr char Dataset_Map_Begin       = '(';
+	constexpr char Dataset_Map_End         = ')';
+	constexpr char Dataset_Map_Assignment  = '=';
+	constexpr char Dataset_Map_Separator   = ',';
 }
 
 // }}}
@@ -783,7 +792,14 @@ namespace
 		, std::string& value
 		) noexcept
 	{
-		size_t index = find_char_(string, '=', begin, end);
+		size_t index = find_char_(string, Dataset_Map_Assignment, begin, end);
+
+printf("index: %lu\n", index);
+printf("end  : %lu\n", end  );
+		if(index > end)
+		{
+			return ztext::Error_Parser_Map_Key_Value_Pair_Missing;
+		}
 
 		size_t key_begin   = begin;
 		size_t key_end     = index - 1;
@@ -1577,33 +1593,51 @@ std::error_code ztext::parse(const std::string& string
 	if(string.empty() == true)
 	{
 		element = element_text_create("");
+
+		return Error_None;
 	}
-	else
+
+	size_t begin = 0;
+	size_t end   = string.size() - 1;
+
+	return ztext::parse(string, begin, end, element);
+}
+
+
+std::error_code ztext::parse(const std::string& string
+	, size_t           begin
+	, size_t           end
+	, ztext::Element*& element
+	) noexcept
+{
+	if(string.empty() == true)
 	{
-		size_t index_begin = 0;
-		size_t index_end   = string.size() - 1;
+		element = element_text_create("");
 
-		std::error_code error = parse_(string, index_begin, index_end, element);
+		return Error_None;
+	}
 
-		if(error == ztext::Error_Parser_No_Text_Found)
-		{
-			element = ztext::element_text_create("");
-			error = Error_None;
-		}
+	std::error_code error = parse_(string, begin, end, element);
 
-		if(error != Error_None)
-		{
-			ztext::element_destroy_all(element);
+	if(error == ztext::Error_Parser_No_Text_Found)
+	{
+		element = ztext::element_text_create("");
 
-			report_error_(error, string, index_begin);
+		return Error_None;
+	}
 
-			return error;
-		}
+	if(error != Error_None)
+	{
+		ztext::element_destroy_all(element);
 
-		if(element == nullptr)
-		{
-			element = ztext::element_text_create("");
-		}
+		report_error_(error, string, begin);
+
+		return error;
+	}
+
+	if(element == nullptr)
+	{
+		element = ztext::element_text_create("");
 	}
 
 	return Error_None;
@@ -2167,12 +2201,76 @@ TEST_CASE("/parse/variable/") // {{{
 #endif
 
 std::error_code ztext::parse(const std::string& string
+	, ztext::MapStringString& map
+	) noexcept
+{
+	map.clear();
+
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(string.empty() == true)
+	{
+		return Error_Parser_No_Text_Found;
+	}
+	#endif
+
+	size_t begin = whitespace_skip_leading_(string, 0);
+	size_t end   = whitespace_skip_trailing_(string, string.size() - 1);
+
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(begin > end)
+	{
+		return Error_Parser_Map_Begin_Marker_Missing;
+	}
+
+	if(string[begin] != Dataset_Map_Begin)
+	{
+		return Error_Parser_Map_Begin_Marker_Missing;
+	}
+
+	if(string[end] != Dataset_Map_End)
+	{
+		return Error_Parser_Map_End_Marker_Missing;
+	}
+	#endif
+
+	return ztext::parse(string, begin, end, map);
+}
+
+
+std::error_code ztext::parse(const std::string& string
 	, size_t                  begin
 	, size_t                  end
 	, ztext::MapStringString& map
 	) noexcept
 {
 	map.clear();
+
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(string.empty() == true)
+	{
+		return Error_Parser_No_Text_Found;
+	}
+	#endif
+
+	begin = whitespace_skip_leading_(string, begin);
+	end   = whitespace_skip_trailing_(string, end);
+
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(begin > end)
+	{
+		return Error_Parser_Map_Begin_Marker_Missing;
+	}
+
+	if(string[begin] != Dataset_Map_Begin)
+	{
+		return Error_Parser_Map_Begin_Marker_Missing;
+	}
+
+	if(string[end] != Dataset_Map_End)
+	{
+		return Error_Parser_Map_End_Marker_Missing;
+	}
+	#endif
 
 	end--;
 	size_t kv_begin = begin + 1;
@@ -2182,10 +2280,15 @@ std::error_code ztext::parse(const std::string& string
 	{
 		kv_end = find_char_(string, ',', kv_begin, end);
 
-		std::string key;
-		std::string value;
+		std::string     key;
+		std::string     value;
+		std::error_code error;
 
-		parse_key_value_(string, kv_begin, kv_end - 1, key, value);
+		error = parse_key_value_(string, kv_begin, kv_end - 1, key, value);
+		if(error)
+		{
+			return error;
+		}
 
 		map[key] = value;
 
@@ -2194,6 +2297,70 @@ std::error_code ztext::parse(const std::string& string
 
 	return Error_None;
 }
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/parse/map/") // {{{
+{
+	SUBCASE("Invalid")
+	{
+		ztext::MapStringString test  = {{"foo", "bar"}};
+		std::error_code        error = {};
+
+		error = ztext::parse("", test);
+		CHECK(error == ztext::Error_Parser_No_Text_Found);
+		CHECK(test.empty() == true);
+
+		error = ztext::parse(")", test);
+		CHECK(error == ztext::Error_Parser_Map_Begin_Marker_Missing);
+
+		error = ztext::parse("(", test);
+		CHECK(error == ztext::Error_Parser_Map_End_Marker_Missing);
+
+		error = ztext::parse("(,)", test);
+		CHECK(error == ztext::Error_Parser_Map_Key_Value_Pair_Missing);
+	}
+
+	SUBCASE("Empty")
+	{
+		ztext::MapStringString test  = {};
+		std::error_code        error = {};
+
+		error = ztext::parse("()", test);
+
+		CHECK(error == ztext::Error_None);
+		CHECK(test.empty() == true);
+	}
+
+	SUBCASE("Wild Whitespace")
+	{
+		ztext::MapStringString control =
+		{	{	"foo", "bar" }
+		,	{	"abc", "xyz" }
+		,	{	"123", "456" }
+		};
+
+		ztext::MapStringString test;
+		std::string string = "( \
+			foo		=  	bar \
+			,abc=xyz, \
+			123\
+			=\
+			456\
+			)";
+		std::error_code error = ztext::parse(string, test);
+		CHECK(error == ztext::Error_None);
+
+		CHECK(control.size() == test.size());
+
+		for(const auto& [key, value] : test)
+		{
+			CHECK(control.contains(key) == true);
+			CHECK(control[key] == value);
+		}
+	}
+} // }}}
+#endif
 
 // }}}
 // {{{ Element
