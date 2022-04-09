@@ -116,6 +116,8 @@
 	X(Error_Parser_Map_Begin_Marker_Missing            , 13 , "The Parser was not able to find the map begin marker '('" ) \
 	X(Error_Parser_Map_End_Marker_Missing              , 14 , "The Parser was not able to find the map end marker ')'" ) \
 	X(Error_Parser_Map_Key_Value_Pair_Missing          , 15 , "The Parser was not able to find the map's key/value pair" ) \
+	X(Error_Parser_Map_Key_Missing                     , 16 , "The Parser was not able to find the key of the map's key/value pair" ) \
+	X(Error_Parser_Map_Value_Missing                   , 17 , "The Parser was not able to find the value of the map's key/value pair" ) \
 
 
 // }}}
@@ -794,27 +796,58 @@ namespace
 	{
 		size_t index = find_char_(string, Dataset_Map_Assignment, begin, end);
 
-printf("index: %lu\n", index);
-printf("end  : %lu\n", end  );
+		#if ZTEXT_ERROR_CHECKS_ENABLED
+		if(index == begin)
+		{
+			return ztext::Error_Parser_Map_Key_Missing;
+		}
+
 		if(index > end)
 		{
 			return ztext::Error_Parser_Map_Key_Value_Pair_Missing;
 		}
+		#endif
 
-		size_t key_begin   = begin;
+		size_t key_begin   = begin + 1;
 		size_t key_end     = index - 1;
 		size_t value_begin = index + 1;
-		size_t value_end   = end;
+		size_t value_end   = end   - 1;
 
 		key_begin = whitespace_skip_leading_(string, key_begin);
 		key_end   = whitespace_skip_trailing_(string, key_end);
-		key = substr_(string, key_begin, key_end);
-		key = whitespace_clean_(key);
 
 		value_begin = whitespace_skip_leading_(string, value_begin);
 		value_end   = whitespace_skip_trailing_(string, value_end);
+
+		#if ZTEXT_ERROR_CHECKS_ENABLED
+		if(key_begin > key_end)
+		{
+			return ztext::Error_Parser_Map_Key_Missing;
+		}
+
+		if(value_begin > value_end)
+		{
+			return ztext::Error_Parser_Map_Value_Missing;
+		}
+		#endif
+
+		key = substr_(string, key_begin, key_end);
+		key = whitespace_clean_(key);
+
 		value = substr_(string, value_begin, value_end);
 		value = whitespace_clean_(value);
+
+		#if ZTEXT_ERROR_CHECKS_ENABLED
+		if(key.empty() == true)
+		{
+			return ztext::Error_Parser_Map_Key_Missing;
+		}
+
+		if(value.empty() == true)
+		{
+			return ztext::Error_Parser_Map_Value_Missing;
+		}
+		#endif
 
 		return ztext::Error_None;
 	}
@@ -2255,6 +2288,11 @@ std::error_code ztext::parse(const std::string& string
 	begin = whitespace_skip_leading_(string, begin);
 	end   = whitespace_skip_trailing_(string, end);
 
+	if(whitespace_skip_leading_(string, begin + 1) == end)
+	{
+		return Error_None;
+	}
+
 	#if ZTEXT_ERROR_CHECKS_ENABLED
 	if(begin > end)
 	{
@@ -2272,19 +2310,22 @@ std::error_code ztext::parse(const std::string& string
 	}
 	#endif
 
-	end--;
-	size_t kv_begin = begin + 1;
+	size_t kv_begin = begin;
 	size_t kv_end   = 0;
 
 	while(kv_begin < end)
 	{
-		kv_end = find_char_(string, ',', kv_begin, end);
+		kv_end = find_char_(string, Dataset_Map_Separator, kv_begin + 1, end);
+		if(kv_end > end)
+		{
+			kv_end = end;
+		}
 
 		std::string     key;
 		std::string     value;
 		std::error_code error;
 
-		error = parse_key_value_(string, kv_begin, kv_end - 1, key, value);
+		error = parse_key_value_(string, kv_begin, kv_end, key, value);
 		if(error)
 		{
 			return error;
@@ -2292,7 +2333,7 @@ std::error_code ztext::parse(const std::string& string
 
 		map[key] = value;
 
-		kv_begin = kv_end + 1;
+		kv_begin = kv_end;
 	}
 
 	return Error_None;
@@ -2319,6 +2360,36 @@ TEST_CASE("/parse/map/") // {{{
 
 		error = ztext::parse("(,)", test);
 		CHECK(error == ztext::Error_Parser_Map_Key_Value_Pair_Missing);
+
+		error = ztext::parse("(foo=)", test);
+		CHECK(error == ztext::Error_Parser_Map_Value_Missing);
+
+		error = ztext::parse("(foo   =    )", test);
+		CHECK(error == ztext::Error_Parser_Map_Value_Missing);
+
+		error = ztext::parse("(foo=,)", test);
+		CHECK(error == ztext::Error_Parser_Map_Value_Missing);
+
+		error = ztext::parse("(a=b,foo=,)", test);
+		CHECK(error == ztext::Error_Parser_Map_Value_Missing);
+
+		error = ztext::parse("(foo=,a=b)", test);
+		CHECK(error == ztext::Error_Parser_Map_Value_Missing);
+
+		error = ztext::parse("(=bar)", test);
+		CHECK(error == ztext::Error_Parser_Map_Key_Missing);
+
+		error = ztext::parse("(=bar,)", test);
+		CHECK(error == ztext::Error_Parser_Map_Key_Missing);
+
+		error = ztext::parse("(a=b,=bar,)", test);
+		CHECK(error == ztext::Error_Parser_Map_Key_Missing);
+
+		error = ztext::parse("(a=b,   =   bar,)", test);
+		CHECK(error == ztext::Error_Parser_Map_Key_Missing);
+
+		error = ztext::parse("(=bar,a=b)", test);
+		CHECK(error == ztext::Error_Parser_Map_Key_Missing);
 	}
 
 	SUBCASE("Empty")
@@ -2327,12 +2398,11 @@ TEST_CASE("/parse/map/") // {{{
 		std::error_code        error = {};
 
 		error = ztext::parse("()", test);
-
 		CHECK(error == ztext::Error_None);
 		CHECK(test.empty() == true);
 	}
 
-	SUBCASE("Wild Whitespace")
+	SUBCASE("Whitespace")
 	{
 		ztext::MapStringString control =
 		{	{	"foo", "bar" }
