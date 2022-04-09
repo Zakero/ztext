@@ -45,11 +45,6 @@
  *
  * -------------------------------------------------------------------------
  *
- * Add parse(string, begin, end, element)
- * - Remove element_command_content_set(element, string)
- * - Remove element_command_content_set(element, string, begin, end)
- * - Remove element_variable_set(element, string)
- * - Remove element_variable_set(element, string, begin, end)
  * Remove the "cache_" from the "ztext" function names
  * Be able to set variables to "read-only"
  */
@@ -191,8 +186,6 @@ namespace ztext
 
 	[[nodiscard]] Element*         element_command_create(const std::string&) noexcept;
 	[[nodiscard]] Element*         element_command_content(Element*) noexcept;
-	[[]]          std::error_code  element_command_content_set(Element*, const std::string&) noexcept;
-	[[]]          std::error_code  element_command_content_set(Element*, const std::string&, size_t, size_t) noexcept;
 	[[]]          std::error_code  element_command_content_set(Element*, Element*) noexcept;
 	[[nodiscard]] MapStringString& element_command_property(Element*) noexcept;
 	[[]]          void             element_command_property_set(Element*, MapStringString) noexcept;
@@ -201,8 +194,6 @@ namespace ztext
 	[[]]          std::error_code  element_text_set(Element*, const std::string&) noexcept;
 
 	[[nodiscard]] Element*         element_variable_create(const std::string&) noexcept;
-	[[]]          std::error_code  element_variable_set(Element*, const std::string&) noexcept;
-	[[]]          std::error_code  element_variable_set(Element*, const std::string&, size_t, size_t) noexcept;
 	[[]]          std::error_code  element_variable_set(Element*, Element*) noexcept;
 
 	// --- Debugging --- //
@@ -1008,11 +999,18 @@ namespace
 
 			if(token.content_begin != 0)
 			{
+				ztext::Element* content = nullptr;
+				error = ztext::parse(substr_(string, token.content_begin, token.content_end)
+					, content
+					);
+
+				if(error)
+				{
+					return error;
+				}
+
 				error = ztext::element_command_content_set(element
-					, substr_(string
-						, token.content_begin
-						, token.content_end
-						)
+					, content
 					);
 			}
 		}
@@ -1028,11 +1026,18 @@ namespace
 
 			if(token.content_begin != 0)
 			{
+				ztext::Element* content = nullptr;
+				error = ztext::parse(substr_(string, token.content_begin, token.content_end)
+					, content
+					);
+
+				if(error)
+				{
+					return error;
+				}
+
 				error = ztext::element_variable_set(element
-					, substr_(string
-						, token.content_begin
-						, token.content_end
-						)
+					, content
 					);
 			}
 		}
@@ -1313,7 +1318,9 @@ TEST_CASE("/cache/clear/") // {{{
 	ztext::ZText* zt = ztext::create();
 
 	ztext::Element* var = ztext::element_variable_create("name");
-	ztext::element_variable_set(var, "The Foo");
+	ztext::element_variable_set(var
+		, ztext::element_text_create("The Foo")
+		);
 
 	std::string name = ztext::eval(zt, var);
 
@@ -1355,7 +1362,9 @@ TEST_CASE("/cache/variable/clear/all/") // {{{
 	ztext::ZText* zt = ztext::create();
 
 	ztext::Element* var = ztext::element_variable_create("name");
-	ztext::element_variable_set(var, "The Foo");
+	ztext::element_variable_set(var
+		, ztext::element_text_create("The Foo")
+		);
 
 	std::string name = ztext::eval(zt, var);
 
@@ -1399,7 +1408,9 @@ TEST_CASE("/cache/variable/list/") // {{{
 	ztext::ZText* zt = ztext::create();
 
 	ztext::Element* var = ztext::element_variable_create("name");
-	ztext::element_variable_set(var, "The Foo");
+	ztext::element_variable_set(var
+		, ztext::element_text_create("The Foo")
+		);
 
 	std::string name = ztext::eval(zt, var);
 
@@ -1450,7 +1461,7 @@ void ztext::cache_variable_set(ztext::ZText* ztext
 }
 
 // }}}
-// {{{ ZText: Commands
+// {{{ ZText: Command
 
 void ztext::command_create(ztext::ZText* ztext
 	, std::string          name
@@ -3139,83 +3150,6 @@ ztext::Element* ztext::element_command_content(Element* element
 }
 
 std::error_code ztext::element_command_content_set(Element* element
-	, const std::string& string
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(element == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'element' can not be null"
-			<< '\n';
-
-		return Error_Invalid_Parameter;
-	}
-
-	if(element->type != ztext::Type::Command)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'element' must be of type 'command'"
-			<< '\n';
-
-		return Error_Element_Type_Not_Command;
-	}
-	#endif
-
-	std::error_code error = {};
-
-	error = element_command_content_set(element, string, 0, string.size() - 1);
-
-	return error;
-}
-
-
-std::error_code ztext::element_command_content_set(Element* element
-	, const std::string& string
-	, size_t             begin
-	, size_t             end
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(element == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'element' can not be null"
-			<< '\n';
-
-		return Error_Invalid_Parameter;
-	}
-
-	if(element->type != ztext::Type::Command)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'element' must be of type 'command'"
-			<< '\n';
-
-		return Error_Element_Type_Not_Command;
-	}
-	#endif
-
-	std::error_code error = {};
-	Element*        child = nullptr;
-
-	error = parse_(string, begin, end, child);
-
-	if(error != ztext::Error_None)
-	{
-		ztext::element_destroy_all(child);
-
-		return error;
-	}
-
-	error = ztext::element_command_content_set(element, child);
-
-	element->child = child;
-
-	return error;
-}
-
-std::error_code ztext::element_command_content_set(Element* element
 	, Element* content
 	) noexcept
 {
@@ -3491,84 +3425,6 @@ TEST_CASE("/element/variable/create/") // {{{
 #endif
 
 std::error_code ztext::element_variable_set(Element* element
-	, const std::string& string
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(element == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'element' can not be null"
-			<< '\n';
-
-		return Error_Invalid_Parameter;
-	}
-
-	if(element->type != ztext::Type::Variable)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'element' must be of type 'variable'"
-			<< '\n';
-
-		return Error_Element_Type_Not_Variable;
-	}
-	#endif
-
-	std::error_code error = {};
-
-	error = element_variable_set(element, string, 0, string.size() - 1);
-
-	return error;
-}
-
-
-std::error_code ztext::element_variable_set(Element* element
-	, const std::string& string
-	, size_t             begin
-	, size_t             end
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(element == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'element' can not be null"
-			<< '\n';
-
-		return Error_Invalid_Parameter;
-	}
-
-	if(element->type != ztext::Type::Variable)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'element' must be of type 'variable'"
-			<< '\n';
-
-		return Error_Element_Type_Not_Variable;
-	}
-	#endif
-
-	std::error_code error = {};
-	Element*        child = nullptr;
-
-	error = parse_(string, begin, end, child);
-
-	if(error != ztext::Error_None)
-	{
-		ztext::element_destroy_all(child);
-
-		return error;
-	}
-
-	error = ztext::element_variable_set(element, child);
-
-	element->child = child;
-
-	return error;
-}
-
-
-std::error_code ztext::element_variable_set(Element* element
 	, Element* content
 	) noexcept
 {
@@ -3581,6 +3437,26 @@ std::error_code ztext::element_variable_set(Element* element
 
 		return Error_Invalid_Parameter;
 	}
+
+	if(element->type != ztext::Type::Variable)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'variable'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Variable;
+	}
+
+	if(content != nullptr
+		&& content->parent != nullptr
+		)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'content' is being used"
+			<< '\n';
+
+		return Error_Element_In_Use;
+	}
 	#endif
 
 	while(element->child != nullptr)
@@ -3589,6 +3465,12 @@ std::error_code ztext::element_variable_set(Element* element
 	}
 
 	element->child = content;
+
+	while(content != nullptr)
+	{
+		content->parent = element;
+		content = content->next;
+	}
 
 	return ztext::Error_None;
 }
@@ -3602,28 +3484,17 @@ TEST_CASE("/element/variable/set/") // {{{
 
 	SUBCASE("Invalid")
 	{
-		error = ztext::element_variable_set(var, "foo");
+		ztext::Element* content = ztext::element_text_create("foo");
+
+		error = ztext::element_variable_set(var, content);
 		CHECK(error == ztext::Error_Invalid_Parameter);
 
 		var = ztext::element_text_create("text");
-		error = ztext::element_variable_set(var, "foo");
+		error = ztext::element_variable_set(var, content);
 		CHECK(error == ztext::Error_Element_Type_Not_Variable);
-		ztext::element_destroy(var);
-	}
-
-	SUBCASE("String")
-	{
-		var = ztext::element_variable_create("var");
-		
-		error = ztext::element_variable_set(var, "abcdef");
-		CHECK(error == ztext::Error_None);
-		CHECK(ztext::eval(zt, var) == "abcdef");
-
-		error = ztext::element_variable_set(var, "abcdef", 1, 4);
-		CHECK(error == ztext::Error_None);
-		CHECK(ztext::eval(zt, var) == "bcde");
 
 		ztext::element_destroy(var);
+		ztext::element_destroy(content);
 	}
 
 	SUBCASE("Element")
