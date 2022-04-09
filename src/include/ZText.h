@@ -51,6 +51,7 @@
  * - Remove element_variable_set(element, string)
  * - Remove element_variable_set(element, string, begin, end)
  * Remove the "cache_" from the "ztext" function names
+ * Be able to set variables to "read-only"
  */
 
 
@@ -163,7 +164,7 @@ namespace ztext
 	[[]]          void             cache_variable_clear_all(ZText*) noexcept;
 	[[]]          VectorString     cache_variable_list(ZText*) noexcept;
 	//[[]]          std::string      cache_variable_eval(ZText* ztext, const std::string& name) noexcept;
-	//[[]]          void             cache_variable_set(ZText* ztext, const std::string& name, Element* element_chain, bool read_only = false) noexcept;
+	[[]]          void             cache_variable_set(ZText*, std::string, Element*, bool read_only = false) noexcept;
 	[[]]          void             command_create(ZText*, std::string, ztext::CommandLambda) noexcept;
 	[[]]          void             command_destroy(ZText*, std::string) noexcept;
 	[[]]          void             command_destroy_all(ZText*) noexcept;
@@ -1411,6 +1412,43 @@ TEST_CASE("/cache/variable/list/") // {{{
 } // }}}
 #endif
 
+void ztext::cache_variable_set(ztext::ZText* ztext
+	, std::string     name
+	, ztext::Element* element
+	, bool            //read-only
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be null"
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty"
+			<< '\n';
+	}
+
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->variable.contains(name))
+	{
+		ztext::element_destroy_all(ztext->variable[name]);
+	}
+
+	ztext->variable[name] = element;
+}
+
 // }}}
 // {{{ ZText: Commands
 
@@ -1586,6 +1624,40 @@ std::string ztext::eval(ztext::ZText* ztext
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/eval/command/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+	ztext::command_create(zt
+		, "cmd"
+		, ZTextCommandLambda(/* ztext, element */)
+		{
+			return "X";
+		});
+
+	SUBCASE("single")
+	{
+		ztext::Element* element = ztext::element_command_create("cmd");
+		CHECK(ztext::eval(zt, element, false) == "X");
+		ztext::element_destroy(element);
+	}
+
+	SUBCASE("many")
+	{
+		ztext::Element* foo = ztext::element_command_create("cmd");
+		ztext::Element* bar = ztext::element_command_create("cmd");
+		ztext::Element* zig = ztext::element_command_create("cmd");
+
+		ztext::element_append(foo, bar);
+		ztext::element_append(bar, zig);
+		CHECK(ztext::eval(zt, foo, true) == "XXX");
+
+		ztext::element_destroy(foo);
+		ztext::element_destroy(bar);
+		ztext::element_destroy(zig);
+	}
+
+	destroy(zt);
+} // }}}
 TEST_CASE("/eval/text/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
@@ -1594,6 +1666,14 @@ TEST_CASE("/eval/text/") // {{{
 	{
 		ztext::Element* text = ztext::element_text_create("text");
 		CHECK(ztext::eval(zt, text, false) == "text");
+		ztext::element_destroy(text);
+
+		text = ztext::element_text_create("\\{{text\\}}");
+		CHECK(ztext::eval(zt, text, false) == "{{text}}");
+		ztext::element_destroy(text);
+
+		text = ztext::element_text_create("{{text}}");
+		CHECK(ztext::eval(zt, text, false) == "{{text}}");
 		ztext::element_destroy(text);
 	}
 
@@ -1610,6 +1690,36 @@ TEST_CASE("/eval/text/") // {{{
 		ztext::element_destroy(hello);
 		ztext::element_destroy(comma);
 		ztext::element_destroy(world);
+	}
+
+	destroy(zt);
+} // }}}
+TEST_CASE("/eval/variable/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	ztext::cache_variable_set(zt, "var", ztext::element_text_create("X"));
+
+	SUBCASE("single")
+	{
+		ztext::Element* element = ztext::element_variable_create("var");
+		CHECK(ztext::eval(zt, element, false) == "X");
+		ztext::element_destroy(element);
+	}
+
+	SUBCASE("many")
+	{
+		ztext::Element* foo = ztext::element_variable_create("var");
+		ztext::Element* bar = ztext::element_variable_create("var");
+		ztext::Element* zig = ztext::element_variable_create("var");
+
+		ztext::element_append(foo, bar);
+		ztext::element_append(bar, zig);
+		CHECK(ztext::eval(zt, foo, true) == "XXX");
+
+		ztext::element_destroy(foo);
+		ztext::element_destroy(bar);
+		ztext::element_destroy(zig);
 	}
 
 	destroy(zt);
