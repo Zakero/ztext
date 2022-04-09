@@ -45,8 +45,11 @@
  *
  * -------------------------------------------------------------------------
  *
- * Add Command Lambdas
- * Parse Command Elements
+ * Add parse(string, begin, end, element)
+ * - Remove element_command_content_set(element, string)
+ * - Remove element_command_content_set(element, string, begin, end)
+ * - Remove element_variable_set(element, string)
+ * - Remove element_variable_set(element, string, begin, end)
  */
 
 
@@ -148,52 +151,53 @@ namespace ztext
 
 
 	// --- ZText --- //
-	[[nodiscard]] ZText*          create() noexcept;
-	[[]]          void            destroy(ZText*&) noexcept;
-	[[]]          void            cache_clear(ZText*) noexcept;
-	[[]]          void            cache_variable_clear_all(ZText*) noexcept;
-	[[]]          VectorString    cache_variable_list(ZText*) noexcept;
-	//[[]]          std::string     cache_variable_eval(ZText* ztext, const std::string& name) noexcept;
-	//[[]]          void            cache_variable_set(ZText* ztext, const std::string& name, Element* element_chain, bool read_only = false) noexcept;
-	[[]]          void            command_create(ZText*, std::string, ztext::CommandLambda) noexcept;
-	[[]]          void            command_destroy(ZText*, std::string) noexcept;
-	[[]]          void            command_destroy_all(ZText*) noexcept;
+	[[nodiscard]] ZText*           create() noexcept;
+	[[]]          void             destroy(ZText*&) noexcept;
+	[[]]          void             cache_clear(ZText*) noexcept;
+	[[]]          void             cache_variable_clear_all(ZText*) noexcept;
+	[[]]          VectorString     cache_variable_list(ZText*) noexcept;
+	//[[]]          std::string      cache_variable_eval(ZText* ztext, const std::string& name) noexcept;
+	//[[]]          void             cache_variable_set(ZText* ztext, const std::string& name, Element* element_chain, bool read_only = false) noexcept;
+	[[]]          void             command_create(ZText*, std::string, ztext::CommandLambda) noexcept;
+	[[]]          void             command_destroy(ZText*, std::string) noexcept;
+	[[]]          void             command_destroy_all(ZText*) noexcept;
 
 	// --- Evaluation --- //
-	[[nodiscard]] std::string     eval(ZText*, Element*, bool = true) noexcept;
+	[[nodiscard]] std::string      eval(ZText*, Element*, bool = true) noexcept;
 
 	// --- Parse --- //
-	[[]]          std::error_code parse(const std::string&, Element*&) noexcept;
+	[[]]          std::error_code  parse(const std::string&, Element*&) noexcept;
+	[[]]          std::error_code  parse(const std::string&, size_t, size_t, ztext::MapStringString&) noexcept;
 
 	// --- Element --- //
-	[[]]          std::error_code element_append(Element*, Element*) noexcept;
-	[[]]          std::error_code element_insert(Element*, Element*) noexcept;
-	[[]]          Element*        element_destroy(Element*&) noexcept;
-	[[]]          void            element_destroy_all(Element*&) noexcept;
-	[[]]          void            element_remove(Element*) noexcept;
-	[[nodiscard]] Element*        element_next(Element*) noexcept;
-	[[nodiscard]] Element*        element_prev(Element*) noexcept;
-	[[nodiscard]] Element*        element_find_head(Element*) noexcept;
-	[[nodiscard]] Element*        element_find_tail(Element*) noexcept;
+	[[]]          std::error_code  element_append(Element*, Element*) noexcept;
+	[[]]          std::error_code  element_insert(Element*, Element*) noexcept;
+	[[]]          Element*         element_destroy(Element*&) noexcept;
+	[[]]          void             element_destroy_all(Element*&) noexcept;
+	[[]]          void             element_remove(Element*) noexcept;
+	[[nodiscard]] Element*         element_next(Element*) noexcept;
+	[[nodiscard]] Element*         element_prev(Element*) noexcept;
+	[[nodiscard]] Element*         element_find_head(Element*) noexcept;
+	[[nodiscard]] Element*         element_find_tail(Element*) noexcept;
 
-	[[nodiscard]] Element*        element_command_create(const std::string&) noexcept;
-	[[nodiscard]] Element*        element_command_content(Element*) noexcept;
-	[[]]          std::error_code element_command_content_set(Element*, const std::string&) noexcept;
-	[[]]          std::error_code element_command_content_set(Element*, const std::string&, size_t, size_t) noexcept;
-	[[]]          std::error_code element_command_content_set(Element*, Element*) noexcept;
-	//[[nodiscard]] MapStringString element_command_property(Element*) noexcept;
-	[[]]          void            element_command_property_set(Element*, std::string, std::string) noexcept;
+	[[nodiscard]] Element*         element_command_create(const std::string&) noexcept;
+	[[nodiscard]] Element*         element_command_content(Element*) noexcept;
+	[[]]          std::error_code  element_command_content_set(Element*, const std::string&) noexcept;
+	[[]]          std::error_code  element_command_content_set(Element*, const std::string&, size_t, size_t) noexcept;
+	[[]]          std::error_code  element_command_content_set(Element*, Element*) noexcept;
+	[[nodiscard]] MapStringString& element_command_property(Element*) noexcept;
+	[[]]          void             element_command_property_set(Element*, MapStringString) noexcept;
 
-	[[nodiscard]] Element*        element_text_create(const std::string&) noexcept;
-	[[]]          std::error_code element_text_set(Element*, const std::string&) noexcept;
+	[[nodiscard]] Element*         element_text_create(const std::string&) noexcept;
+	[[]]          std::error_code  element_text_set(Element*, const std::string&) noexcept;
 
-	[[nodiscard]] Element*        element_variable_create(const std::string&) noexcept;
-	[[]]          std::error_code element_variable_set(Element*, const std::string&) noexcept;
-	[[]]          std::error_code element_variable_set(Element*, const std::string&, size_t, size_t) noexcept;
-	[[]]          std::error_code element_variable_set(Element*, Element*) noexcept;
+	[[nodiscard]] Element*         element_variable_create(const std::string&) noexcept;
+	[[]]          std::error_code  element_variable_set(Element*, const std::string&) noexcept;
+	[[]]          std::error_code  element_variable_set(Element*, const std::string&, size_t, size_t) noexcept;
+	[[]]          std::error_code  element_variable_set(Element*, Element*) noexcept;
 
 	// --- Debugging --- //
-	[[]]          void            print(const Element*, const bool = false) noexcept;
+	[[]]          void             print(const Element*, const bool = false) noexcept;
 }
 
 #ifdef ZTEXT_IMPLEMENTATION // {{{
@@ -554,6 +558,67 @@ namespace
 	}
 
 
+	size_t find_char_(const std::string& string
+		, unsigned char ch
+		, size_t        begin
+		, size_t        end
+		) noexcept
+	{
+		size_t index = begin;
+		while(index <= end)
+		{
+			if(string[index] == ch
+				&& string[index - 1] != Token_Escape
+				)
+			{
+				break;
+			}
+
+			index++;
+		}
+
+		return index;
+	}
+
+
+	size_t find_char_end_(const std::string& string
+		, unsigned char char_begin
+		, unsigned char char_end
+		, size_t index_begin
+		, size_t index_end
+		) noexcept
+	{
+		size_t index = index_begin + 1;
+		size_t depth = 0;
+
+		while(index <= index_end)
+		{
+			if(string[index] == char_begin
+				&& string[index - 1] != Token_Escape
+				)
+			{
+				depth++;
+			}
+
+			if(string[index] == char_end
+				&& string[index - 1] != Token_Escape
+				)
+			{
+				if(depth == 0)
+				{
+					break;
+				}
+
+				depth--;
+			}
+
+			index++;
+		}
+
+		return index;
+	}
+
+
 	std::string whitespace_clean_(std::string string
 		) noexcept
 	{
@@ -709,6 +774,36 @@ namespace
 	}
 
 	// }}}
+	// {{{ Private: Parse: Key/Value
+
+	std::error_code parse_key_value_(const std::string& string
+		, size_t       begin
+		, size_t       end
+		, std::string& key
+		, std::string& value
+		) noexcept
+	{
+		size_t index = find_char_(string, '=', begin, end);
+
+		size_t key_begin   = begin;
+		size_t key_end     = index - 1;
+		size_t value_begin = index + 1;
+		size_t value_end   = end;
+
+		key_begin = whitespace_skip_leading_(string, key_begin);
+		key_end   = whitespace_skip_trailing_(string, key_end);
+		key = substr_(string, key_begin, key_end);
+		key = whitespace_clean_(key);
+
+		value_begin = whitespace_skip_leading_(string, value_begin);
+		value_end   = whitespace_skip_trailing_(string, value_end);
+		value = substr_(string, value_begin, value_end);
+		value = whitespace_clean_(value);
+
+		return ztext::Error_None;
+	}
+
+	// }}}
 	// {{{ Private: Parse: Text
 
 	std::error_code parse_text_(const std::string& string
@@ -844,13 +939,22 @@ namespace
 
 		if(token.type == Identifier_Command)
 		{
-printf("%s\n", __FUNCTION__);
-debug(token, string);
 			parse_token_command_(token, string);
-debug(token, string);
+
 			element = ztext::element_command_create(
 				substr_(string, token.name_begin, token.name_end)
 				);
+
+			if(token.property_begin != 0)
+			{
+				ztext::MapStringString map;
+				ztext::parse(string
+					, token.property_begin
+					, token.property_end
+					, map
+					);
+				ztext::element_command_property_set(element, map);
+			}
 
 			if(token.content_begin != 0)
 			{
@@ -861,7 +965,6 @@ debug(token, string);
 						)
 					);
 			}
-print(element, true);
 		}
 
 		// --- Token: Variable --- //
@@ -990,34 +1093,14 @@ print(element, true);
 
 		if(string[index] == Dataset_Map_Begin)
 		{
-			token.property_begin = index;
-			index++;
+			token.property_begin = token.type_index;
 
-			size_t depth       = 0;
-
-			while(index <= token.end)
-			{
-				if(string[index] == Dataset_Map_Begin
-					&& string[index - 1] != Token_Escape
-					)
-				{
-					depth++;
-				}
-
-				if(string[index] == Dataset_Map_End
-					&& string[index - 1] != Token_Escape
-					)
-				{
-					if(depth == 0)
-					{
-						break;
-					}
-
-					depth--;
-				}
-
-				index++;
-			}
+			index = find_char_end_(string
+				, Dataset_Map_Begin
+				, Dataset_Map_End
+				, token.property_begin
+				, token.end
+				);
 
 			if(index > token.end)
 			{
@@ -1533,7 +1616,6 @@ TEST_CASE("/parse/command/") // {{{
 	ztext::Element* element = nullptr;
 	std::error_code error   = {};
 
-#if 0
 	SUBCASE("Simple")
 	{
 		ztext::command_create(zt
@@ -1543,7 +1625,7 @@ TEST_CASE("/parse/command/") // {{{
 				return "text";
 			});
 
-		SUBCASE("Property and Content: None")
+		SUBCASE("Property:None,Content:None")
 		{
 			error = ztext::parse("{{cmd}}", element);
 			CHECK(error == ztext::Error_None);
@@ -1551,7 +1633,7 @@ TEST_CASE("/parse/command/") // {{{
 			ztext::element_destroy_all(element);
 		}
 
-		SUBCASE("Content: Unused")
+		SUBCASE("Property:None,Content:Unused")
 		{
 			error = ztext::parse("{{cmd foo bar}}", element);
 			CHECK(error == ztext::Error_None);
@@ -1559,7 +1641,7 @@ TEST_CASE("/parse/command/") // {{{
 			ztext::element_destroy_all(element);
 		}
 
-		SUBCASE("Property: Unused")
+		SUBCASE("Property:Unused,Content:None")
 		{
 			error = ztext::parse("{{cmd(key=value)}}", element);
 			CHECK(error == ztext::Error_None);
@@ -1567,7 +1649,7 @@ TEST_CASE("/parse/command/") // {{{
 			ztext::element_destroy_all(element);
 		}
 
-		SUBCASE("Property and Content: Unused")
+		SUBCASE("Property:Unused,Content:Unused")
 		{
 			error = ztext::parse("{{cmd(key=value)foo bar}}", element);
 			CHECK(error == ztext::Error_None);
@@ -1575,12 +1657,11 @@ TEST_CASE("/parse/command/") // {{{
 			ztext::element_destroy_all(element);
 		}
 	}
-#endif
 
 	SUBCASE("Content")
 	{
 		ztext::command_create(zt
-			, "cmd_c"
+			, "cmd"
 			, ZTextCommandLambda()
 			{
 				ztext::Element* content
@@ -1597,35 +1678,149 @@ TEST_CASE("/parse/command/") // {{{
 				return retval;
 			});
 
-		SUBCASE("Property and Content: None")
+		SUBCASE("Property:None,Content:None")
 		{
-			error = ztext::parse("{{cmd_c}}", element);
+			error = ztext::parse("{{cmd}}", element);
 			CHECK(error == ztext::Error_None);
 			CHECK(ztext::eval(zt, element) == "----");
 			ztext::element_destroy_all(element);
 		}
 
-		SUBCASE("Content")
+		SUBCASE("Property:None,Content:Used")
 		{
-			error = ztext::parse("{{cmd_c foo bar}}", element);
+			error = ztext::parse("{{cmd foo bar}}", element);
 			CHECK(error == ztext::Error_None);
 			CHECK(ztext::eval(zt, element) == "--foo bar--");
 			ztext::element_destroy_all(element);
 		}
 
-		SUBCASE("Property: Unused")
+		SUBCASE("Property:Unused,Content:None")
 		{
-			error = ztext::parse("{{cmd_c(key=value)}}", element);
+			error = ztext::parse("{{cmd(key=value)}}", element);
 			CHECK(error == ztext::Error_None);
 			CHECK(ztext::eval(zt, element) == "----");
 			ztext::element_destroy_all(element);
 		}
 
-		SUBCASE("Property Unused with Content")
+		SUBCASE("Property:Unused,Content:Used")
 		{
-			error = ztext::parse("{{cmd_c(key=value) foo bar }}", element);
+			error = ztext::parse("{{cmd(key=value) foo bar }}", element);
 			CHECK(error == ztext::Error_None);
 			CHECK(ztext::eval(zt, element) == "--foo bar--");
+			ztext::element_destroy_all(element);
+		}
+	}
+
+	SUBCASE("Property")
+	{
+		ztext::command_create(zt
+			, "cmd"
+			, ZTextCommandLambda()
+			{
+				ztext::MapStringString property
+					= ztext::element_command_property(element);
+
+				std::string retval = "";
+				for(auto& [ key, value ] : property)
+				{
+					retval += '|' + key + ':' + value + '|';
+				}
+
+				return retval;
+			});
+
+		SUBCASE("Property:None,Content:None")
+		{
+			error = ztext::parse("{{cmd}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property:None,Content:Unused")
+		{
+			error = ztext::parse("{{cmd foo bar}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property:Used,Content:None")
+		{
+			error = ztext::parse("{{cmd(foo=bar)}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "|foo:bar|");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property:Used,Content:Unused")
+		{
+			error = ztext::parse("{{cmd(foo=bar) blah blah}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "|foo:bar|");
+			ztext::element_destroy_all(element);
+		}
+	}
+
+	SUBCASE("Complex")
+	{
+		ztext::command_create(zt
+			, "cmd"
+			, ZTextCommandLambda(/* ztext, element */)
+			{
+				ztext::MapStringString property
+					= ztext::element_command_property(element);
+
+				ztext::Element* content
+					= ztext::element_command_content(element);
+
+				std::string retval = "";
+
+				for(auto& [ key, value ] : property)
+				{
+					retval += '|' + key + ':' + value + '|';
+				}
+
+				std::string str = "";
+				if(content != nullptr)
+				{
+					str = ztext::eval(ztext, content);
+				}
+
+				retval += "--" + str + "--";
+
+				return retval;
+			});
+
+		SUBCASE("Property:None,Content:None")
+		{
+			error = ztext::parse("{{cmd}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "----");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property:None,Content:Used")
+		{
+			error = ztext::parse("{{cmd foo bar}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "--foo bar--");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property:Used,Content:None")
+		{
+			error = ztext::parse("{{cmd(abc=xyz)}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "|abc:xyz|----");
+			ztext::element_destroy_all(element);
+		}
+
+		SUBCASE("Property:Used,Content:Used")
+		{
+			error = ztext::parse("{{cmd(abc=xyz) foo bar}}", element);
+			CHECK(error == ztext::Error_None);
+			CHECK(ztext::eval(zt, element) == "|abc:xyz|--foo bar--");
 			ztext::element_destroy_all(element);
 		}
 	}
@@ -1970,6 +2165,35 @@ TEST_CASE("/parse/variable/") // {{{
 	destroy(zt);
 } // }}}
 #endif
+
+std::error_code ztext::parse(const std::string& string
+	, size_t                  begin
+	, size_t                  end
+	, ztext::MapStringString& map
+	) noexcept
+{
+	map.clear();
+
+	end--;
+	size_t kv_begin = begin + 1;
+	size_t kv_end   = 0;
+
+	while(kv_begin < end)
+	{
+		kv_end = find_char_(string, ',', kv_begin, end);
+
+		std::string key;
+		std::string value;
+
+		parse_key_value_(string, kv_begin, kv_end - 1, key, value);
+
+		map[key] = value;
+
+		kv_begin = kv_end + 1;
+	}
+
+	return Error_None;
+}
 
 // }}}
 // {{{ Element
@@ -2641,11 +2865,27 @@ std::error_code ztext::element_command_content_set(Element* element
 
 		return Error_Element_Type_Not_Command;
 	}
+
+	if(content->parent != nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'content' is being used by another element"
+			<< '\n';
+
+		return Error_Element_In_Use;
+	}
 	#endif
 
 	if(element->child != nullptr)
 	{
 		element_destroy_all(element->child);
+	}
+
+	Element* e = content;
+	while(e != nullptr)
+	{
+		e->parent = element;
+		e = e->next;
 	}
 
 	element->child = content;
@@ -2662,9 +2902,41 @@ TEST_CASE("/element/command/content/set/") // {{{
 } // }}}
 #endif
 
+
+ztext::MapStringString& ztext::element_command_property(Element* element
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+	}
+
+	if(element->type != ztext::Type::Command)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'command'"
+			<< '\n';
+	}
+	#endif
+
+	return element->property;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/command/property/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	ztext::destroy(zt);
+} // }}}
+#endif
+
 void ztext::element_command_property_set(Element* element
-	, std::string key
-	, std::string value
+	, MapStringString property
 	) noexcept
 {
 	#if ZTEXT_ERROR_CHECKS_ENABLED
@@ -2687,7 +2959,7 @@ void ztext::element_command_property_set(Element* element
 	}
 	#endif
 
-	element->property[key] = value;
+	element->property = property;
 
 	//return Error_None;
 }
@@ -3037,6 +3309,16 @@ void print_(const ztext::Element* element
 		, to_string_(element->type).c_str()
 		, element->text.c_str()
 		);
+
+	for(const auto& [key, value] : element->property)
+	{
+		printf("%*sproperty: %s=%s\n"
+			, ((level + 1) * 3)
+			, ""
+			, key.c_str()
+			, value.c_str()
+			);
+	}
 
 	if(children == true)
 	{
