@@ -6,43 +6,6 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-/*
- * TODO: Compond variables
- *       VAR: foo = "Hello, World!"
- *       VAR: bar = "f"
- *       evel {{${{$bar}}oo}} = "Hello, World!"
- *
- * TODO: index_end = find_token_end_(string, index, nested_count&)
- * TODO: index = string_rskip_whitespace_(string, index)
- * TODO: element = convent_token_to_variable_(token, string)
- * TODO: variable_set(ZText* ztext, string name, Element* node, bool read_only)
- * TODO: Be able to set variables to "read-only"
- *
- * Text
- * blah blah blah
- *
- * Variable
- * Use: {{foo$}}
- * Set: {{foo$ the value}}
- *
- * Command
- * No Param: {{foo}}
- * No Param: {{foo the content}}
- * W/ Param: {{foo(a = thing 1, b = thing 2)}}
- * W/ Param: {{foo(a = thing 1, b = thing 2) the content}}
- *
- * Array
- * Use: {{foo@1}}
- * Set: {{foo@ [ thing 1, thing 2 ] }}
- *
- * Map
- * Use: {{foo#abc}}
- * Set: {{foo# ( abc = thing 1, xyz = thing 2 ) }}
- *
- * -------------------------------------------------------------------------
- *
- */
-
 
 /******************************************************************************
  * Includes
@@ -162,15 +125,26 @@ namespace ztext
 	[[nodiscard]] ZText*           create() noexcept;
 	[[]]          void             destroy(ZText*&) noexcept;
 	[[]]          void             clear(ZText*) noexcept;
+
 	[[]]          void             array_clear_all(ZText*) noexcept;
-	[[]]          void             map_clear_all(ZText*) noexcept;
-	[[]]          void             variable_clear_all(ZText*) noexcept;
-	[[]]          VectorString     variable_list(ZText*) noexcept;
-	//[[]]          std::string      variable_eval(ZText* ztext, const std::string& name) noexcept;
-	[[]]          void             variable_set(ZText*, std::string, Element*, bool read_only = false) noexcept;
+	[[]]          std::string      array_eval(ZText*, std::string, size_t) noexcept;
+	[[]]          VectorString     array_list(ZText*) noexcept;
+	[[]]          void             array_set(ZText*, std::string, VectorElement, bool = false) noexcept;
+
 	[[]]          void             command_create(ZText*, std::string, ztext::CommandLambda) noexcept;
 	[[]]          void             command_destroy(ZText*, std::string) noexcept;
 	[[]]          void             command_destroy_all(ZText*) noexcept;
+
+	[[]]          void             map_clear_all(ZText*) noexcept;
+	[[]]          std::string      map_eval(ZText*, std::string, std::string) noexcept;
+	[[]]          VectorString     map_list(ZText*) noexcept;
+	[[]]          VectorString     map_list(ZText*, std::string) noexcept;
+	[[]]          void             map_set(ZText*, std::string, MapStringElement, bool = false) noexcept;
+
+	[[]]          void             variable_clear_all(ZText*) noexcept;
+	[[]]          std::string      variable_eval(ZText*, std::string) noexcept;
+	[[]]          VectorString     variable_list(ZText*) noexcept;
+	[[]]          void             variable_set(ZText*, std::string, Element*, bool = false) noexcept;
 
 	// --- Evaluation --- //
 	[[nodiscard]] std::string      eval(ZText*, Element*, bool = true) noexcept;
@@ -307,16 +281,20 @@ namespace ztext
 		Type             type     = Type::Text;
 	};
 
+	using MapStringBool       = std::unordered_map<std::string, bool>;
 	using MapStringCommand    = std::unordered_map<std::string, CommandLambda>;
 	using MapMapStringElement = std::unordered_map<std::string, MapStringElement>;
 	using MapVectorElement    = std::unordered_map<std::string, VectorElement>;
 
 	struct ZText
 	{
-		MapVectorElement    array    = {};
-		MapStringElement    variable = {};
-		MapStringCommand    command  = {};
-		MapMapStringElement map      = {};
+		MapVectorElement    array             = {};
+		MapStringBool       array_readonly    = {};
+		MapStringCommand    command           = {};
+		MapMapStringElement map               = {};
+		MapStringBool       map_readonly      = {};
+		MapStringElement    variable          = {};
+		MapStringBool       variable_readonly = {};
 	};
 }
 
@@ -552,50 +530,48 @@ namespace
 		, ztext::Element* element
 		) noexcept
 	{
-		if(element->array.empty() == false)
+		std::string key   = element->property[""];
+		size_t      index = 0;
+
+		if(key.empty() == true)
 		{
-			std::string key    = element->property[""];
-			size_t      index  = 0;
-			if(key.empty() == true)
-			{
-				index = element->array.size();
-			}
-			else
-			{
-				index = std::stoul(key);
-			}
+			index = element->array.size();
+		}
+		else
+		{
+			index = std::stoul(key);
+		}
 
-			std::string retval = "";
-
-			if(index >= element->array.size())
-			{
-				retval = "";
-			}
-			else
-			{
-				retval = eval(ztext, element->array[index]);
-			}
-
-			if(ztext->array.contains(element->text) == true)
-			{
-				array_destroy_(ztext->array[element->text]);
-			}
-
-			ztext->array[element->text] = array_copy_(element->array);
+		if(element->array.empty() == true)
+		{
+			std::string retval = ztext::array_eval(ztext, element->text, index);
 
 			return retval;
 		}
 
-		if(ztext->array.contains(element->text) == true)
+		if(ztext->array_readonly.contains(element->text) == true
+			&& ztext->array_readonly[element->text] == true
+			)
 		{
-			std::string key    = element->property[""];
-			size_t      index  = (size_t)std::stoi(key);
-			std::string retval = eval(ztext, ztext->array[element->text][index]);
+			std::string retval = ztext::array_eval(ztext, element->text, index);
 
 			return retval;
 		}
 
-		return "";
+		std::string retval = "";
+
+		if(index < element->array.size())
+		{
+			retval = ztext::eval(ztext, element->array[index]);
+		}
+
+		ztext::array_set(ztext
+			, element->text
+			, array_copy_(element->array)
+			, false
+			);
+
+		return retval;
 	}
 }
 
@@ -634,39 +610,42 @@ namespace
 		, ztext::Element* element
 		) noexcept
 	{
-		if(element->map.empty() == false)
+		std::string key = element->property[""];
+
+		if(element->map.empty() == true)
 		{
-			std::string key    = element->property[""];
-			std::string retval = "";
-
-			if(element->map.contains(key) == false)
-			{
-				retval = "";
-			}
-			else
-			{
-				retval = eval(ztext, element->map[key]);
-			}
-
-			if(ztext->map.contains(element->text) == true)
-			{
-				map_destroy_(ztext->map[element->text]);
-			}
-
-			ztext->map[element->text] = map_copy_(element->map);
+			std::string retval = ztext::map_eval(ztext, element->text, key);
 
 			return retval;
 		}
 
-		if(ztext->map.contains(element->text) == true)
+		if(ztext->map_readonly.contains(element->text) == true
+			&& ztext->map_readonly[element->text] == true
+			)
 		{
-			std::string key = element->property[""];
-			std::string retval = eval(ztext, ztext->map[element->text][key]);
+			std::string retval = ztext::map_eval(ztext, element->text, key);
 
 			return retval;
 		}
 
-		return "";
+		std::string retval = "";
+
+		if(element->map.contains(key) == false)
+		{
+			retval = "";
+		}
+		else
+		{
+			retval = ztext::eval(ztext, element->map[key]);
+		}
+
+		ztext::map_set(ztext
+			, element->text
+			, map_copy_(element->map)
+			, false
+			);
+
+		return retval;
 	}
 }
 
@@ -679,29 +658,30 @@ namespace
 		, const ztext::Element* element
 		) noexcept
 	{
-		if(element->child != nullptr)
+		if(element->child == nullptr)
 		{
-			std::string retval = eval(ztext, element->child);
-
-			if(ztext->variable.contains(element->text) == true)
-			{
-				element_destroy_all(ztext->variable[element->text]);
-			}
-
-			ztext::Element* content = element_copy_all_(element->child);
-			ztext->variable[element->text] = content;
+			std::string retval = ztext::variable_eval(ztext, element->text);
 
 			return retval;
 		}
 
-		if(ztext->variable.contains(element->text) == true)
+		if(ztext->variable_readonly.contains(element->text) == true
+			&& ztext->variable_readonly[element->text] == true
+			)
 		{
-			std::string retval = eval(ztext, ztext->variable[element->text]);
+			std::string retval = ztext::variable_eval(ztext, element->text);
 
 			return retval;
 		}
 
-		return "";
+		std::string retval = ztext::eval(ztext, element->child);
+
+		ztext::Element* content = element_copy_all_(element->child);
+		ztext::variable_set(ztext, element->text, content, false);
+
+		ztext->variable[element->text] = content;
+
+		return retval;
 	}
 }
 
@@ -1759,6 +1739,8 @@ TEST_CASE("/clear/") // {{{
 } // }}}
 #endif
 
+// }}}
+// {{{ ZText: Array
 
 void ztext::array_clear_all(ztext::ZText* ztext
 	) noexcept
@@ -1776,6 +1758,8 @@ void ztext::array_clear_all(ztext::ZText* ztext
 	{
 		array_destroy_(array);
 	}
+
+	ztext->array.clear();
 }
 
 
@@ -1788,6 +1772,136 @@ TEST_CASE("/array/clear/all/") // {{{
 } // }}}
 #endif
 
+
+std::string ztext::array_eval(ztext::ZText* ztext
+	, std::string name
+	, size_t      index
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->array.contains(name) == false)
+	{
+		return "";
+	}
+
+	if(index >= ztext->array[name].size())
+	{
+		return "";
+	}
+
+	std::string retval = ztext::eval(ztext, ztext->array[name][index]);
+
+	return retval;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/array/eval/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+ztext::VectorString ztext::array_list(ztext::ZText* ztext
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	VectorString retval;
+	for(auto& [name, vector] : ztext->array)
+	{
+		retval.push_back(name);
+	}
+
+	return retval;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/array/list/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+void ztext::array_set(ztext::ZText* ztext
+	, std::string          name
+	, ztext::VectorElement array
+	, bool                 read_only
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+
+	if(array.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'array' can not be empty."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->array.contains(name) == true)
+	{
+		array_destroy_(ztext->array[name]);
+	}
+
+	ztext->array[name] = array;
+	ztext->array_readonly[name] = read_only;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/array/set/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+// }}}
+// {{{ ZText: Map
 
 void ztext::map_clear_all(ztext::ZText* ztext
 	) noexcept
@@ -1805,6 +1919,8 @@ void ztext::map_clear_all(ztext::ZText* ztext
 	{
 		map_destroy_(map);
 	}
+
+	ztext->map.clear();
 }
 
 
@@ -1817,6 +1933,178 @@ TEST_CASE("/map/clear/all/") // {{{
 } // }}}
 #endif
 
+
+std::string ztext::map_eval(ztext::ZText* ztext
+	, std::string name
+	, std::string key
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+
+	if(key.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'key' can not be empty."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->map.contains(name) == false)
+	{
+		return "";
+	}
+
+	if(ztext->map[name].contains(key) == false)
+	{
+		return "";
+	}
+
+	std::string retval = ztext::eval(ztext, ztext->map[name][key]);
+
+	return retval;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/map/eval/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+ztext::VectorString ztext::map_list(ztext::ZText* ztext
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	VectorString retval;
+	for(auto& [name, map] : ztext->map)
+	{
+		retval.push_back(name);
+	}
+
+	return retval;
+}
+
+
+ztext::VectorString ztext::map_list(ztext::ZText* ztext
+	, std::string name
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->map.contains(name) == false)
+	{
+		return {};
+	}
+
+	VectorString retval;
+	for(auto& [key, value] : ztext->map[name])
+	{
+		retval.push_back(key);
+	}
+
+	return retval;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/map/list/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+void ztext::map_set(ztext::ZText* ztext
+	, std::string             name
+	, ztext::MapStringElement map
+	, bool                    read_only
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+
+	if(map.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'map' can not be empty."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->map.contains(name) == true)
+	{
+		map_destroy_(ztext->map[name]);
+	}
+
+	ztext->map[name] = map;
+	ztext->map_readonly[name] = read_only;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/map/set/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+// }}}
+// {{{ ZText: Variable
 
 void ztext::variable_clear_all(ztext::ZText* ztext
 	) noexcept
@@ -1863,6 +2151,37 @@ TEST_CASE("/variable/clear/all/") // {{{
 } // }}}
 #endif
 
+std::string ztext::variable_eval(ztext::ZText* ztext
+	, std::string name
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->variable.contains(name) == false)
+	{
+		return "";
+	}
+
+	std::string retval = ztext::eval(ztext, ztext->variable[name]);
+
+	return retval;
+}
+
+
 ztext::VectorString ztext::variable_list(ztext::ZText* ztext
 	) noexcept
 {
@@ -1883,6 +2202,7 @@ ztext::VectorString ztext::variable_list(ztext::ZText* ztext
 
 	return retval;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/variable/list/") // {{{
@@ -1908,7 +2228,7 @@ TEST_CASE("/variable/list/") // {{{
 void ztext::variable_set(ztext::ZText* ztext
 	, std::string     name
 	, ztext::Element* element
-	, bool            //read-only
+	, bool            read_only
 	) noexcept
 {
 	#if ZTEXT_ERROR_CHECKS_ENABLED
@@ -1934,12 +2254,13 @@ void ztext::variable_set(ztext::ZText* ztext
 	}
 	#endif
 
-	if(ztext->variable.contains(name))
+	if(ztext->variable.contains(name) == true)
 	{
 		ztext::element_destroy_all(ztext->variable[name]);
 	}
 
 	ztext->variable[name] = element;
+	ztext->variable_readonly[name] = read_only;
 }
 
 // }}}
@@ -4789,6 +5110,29 @@ TEST_CASE("/element/variable/set/") // {{{
 			);
 		CHECK(error == ztext::Error_None);
 		CHECK(ztext::eval(zt, var) == text);
+
+		ztext::element_destroy(var);
+	}
+
+	SUBCASE("read-only")
+	{
+		var = ztext::element_variable_create("var");
+		ztext::element_variable_set(var, ztext::element_text_create("aaa"));
+
+		CHECK(ztext::eval(zt, var) == "aaa");
+		CHECK(ztext::variable_eval(zt, "var") == "aaa");
+
+		ztext::variable_set(zt, "var", ztext::element_text_create("bbb"));
+		CHECK(ztext::eval(zt, var) == "aaa");
+		CHECK(ztext::variable_eval(zt, "var") == "aaa");
+
+		ztext::variable_set(zt, "var", ztext::element_text_create("ccc"), true);
+		CHECK(ztext::eval(zt, var) == "ccc");
+		CHECK(ztext::variable_eval(zt, "var") == "ccc");
+
+		ztext::variable_set(zt, "var", ztext::element_text_create("ddd"), false);
+		CHECK(ztext::eval(zt, var) == "aaa");
+		CHECK(ztext::variable_eval(zt, "var") == "aaa");
 
 		ztext::element_destroy(var);
 	}
