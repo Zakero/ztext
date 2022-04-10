@@ -88,6 +88,11 @@
 
 #define ZTextCommandLambda(...) [__VA_ARGS__](ztext::ZText* ztext, ztext::Element* element) -> std::string
 
+
+/******************************************************************************
+ * ZText
+ */
+
 namespace ztext
 {
 	// {{{ Error
