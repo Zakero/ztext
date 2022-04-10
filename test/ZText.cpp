@@ -1,5 +1,6 @@
 /*
 g++ -std=c++20 -Wall -Werror -o ZText ZText.cpp && ./ZText
+rm -f vgcore.*; g++ -std=c++20 -Wall -Werror -g -o ZText ZText.cpp && valgrind --leak-check=full ./ZText
  */
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "./doctest.h"
