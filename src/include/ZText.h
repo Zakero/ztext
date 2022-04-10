@@ -17,10 +17,11 @@
  *       VAR: bar = "f"
  *       evel {{${{$bar}}oo}} = "Hello, World!"
  *
- * TODO: index_end = find_token_end_(string, index, nested_count&)\n"
- * TODO: index = string_rskip_whitespace_(string, index)\n"
- * TODO: element = convent_token_to_variable_(token, string)\n"
+ * TODO: index_end = find_token_end_(string, index, nested_count&)
+ * TODO: index = string_rskip_whitespace_(string, index)
+ * TODO: element = convent_token_to_variable_(token, string)
  * TODO: variable_set(ZText* ztext, string name, Element* node, bool read_only)
+ * TODO: Be able to set variables to "read-only"
  *
  * Text
  * blah blah blah
@@ -45,8 +46,6 @@
  *
  * -------------------------------------------------------------------------
  *
- * Remove the "cache_" from the "ztext" function names
- * Be able to set variables to "read-only"
  */
 
 
@@ -155,11 +154,11 @@ namespace ztext
 	// --- ZText --- //
 	[[nodiscard]] ZText*           create() noexcept;
 	[[]]          void             destroy(ZText*&) noexcept;
-	[[]]          void             cache_clear(ZText*) noexcept;
-	[[]]          void             cache_variable_clear_all(ZText*) noexcept;
-	[[]]          VectorString     cache_variable_list(ZText*) noexcept;
-	//[[]]          std::string      cache_variable_eval(ZText* ztext, const std::string& name) noexcept;
-	[[]]          void             cache_variable_set(ZText*, std::string, Element*, bool read_only = false) noexcept;
+	[[]]          void             clear(ZText*) noexcept;
+	[[]]          void             variable_clear_all(ZText*) noexcept;
+	[[]]          VectorString     variable_list(ZText*) noexcept;
+	//[[]]          std::string      variable_eval(ZText* ztext, const std::string& name) noexcept;
+	[[]]          void             variable_set(ZText*, std::string, Element*, bool read_only = false) noexcept;
 	[[]]          void             command_create(ZText*, std::string, ztext::CommandLambda) noexcept;
 	[[]]          void             command_destroy(ZText*, std::string) noexcept;
 	[[]]          void             command_destroy_all(ZText*) noexcept;
@@ -1277,7 +1276,7 @@ void ztext::destroy(ztext::ZText*& ztext
 	}
 	#endif
 
-	ztext::cache_clear(ztext);
+	ztext::clear(ztext);
 	ztext::command_destroy_all(ztext);
 
 	delete ztext;
@@ -1294,10 +1293,8 @@ TEST_CASE("/destroy/") // {{{
 } // }}}
 #endif
 
-// }}}
-// {{{ ZText: Cache
 
-void ztext::cache_clear(ztext::ZText* ztext
+void ztext::clear(ztext::ZText* ztext
 	) noexcept
 {
 	#if ZTEXT_ERROR_CHECKS_ENABLED
@@ -1309,11 +1306,11 @@ void ztext::cache_clear(ztext::ZText* ztext
 	}
 	#endif
 
-	ztext::cache_variable_clear_all(ztext);
+	ztext::variable_clear_all(ztext);
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/cache/clear/") // {{{
+TEST_CASE("/clear/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -1324,19 +1321,19 @@ TEST_CASE("/cache/clear/") // {{{
 
 	std::string name = ztext::eval(zt, var);
 
-	ztext::VectorString list = ztext::cache_variable_list(zt);
+	ztext::VectorString list = ztext::variable_list(zt);
 	CHECK(list.size() == 1);
 
 	ztext::element_destroy_all(var);
-	ztext::cache_clear(zt);
-	list = ztext::cache_variable_list(zt);
+	ztext::clear(zt);
+	list = ztext::variable_list(zt);
 	CHECK(list.empty() == true);
 
 	destroy(zt);
 } // }}}
 #endif
 
-void ztext::cache_variable_clear_all(ztext::ZText* ztext
+void ztext::variable_clear_all(ztext::ZText* ztext
 	) noexcept
 {
 	#if ZTEXT_ERROR_CHECKS_ENABLED
@@ -1357,7 +1354,7 @@ void ztext::cache_variable_clear_all(ztext::ZText* ztext
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/cache/variable/clear/all/") // {{{
+TEST_CASE("/variable/clear/all/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -1368,11 +1365,11 @@ TEST_CASE("/cache/variable/clear/all/") // {{{
 
 	std::string name = ztext::eval(zt, var);
 
-	ztext::VectorString list = ztext::cache_variable_list(zt);
+	ztext::VectorString list = ztext::variable_list(zt);
 	CHECK(list.size() == 1);
 
-	ztext::cache_variable_clear_all(zt);
-	list = ztext::cache_variable_list(zt);
+	ztext::variable_clear_all(zt);
+	list = ztext::variable_list(zt);
 	CHECK(list.empty() == true);
 
 	ztext::element_destroy(var);
@@ -1381,7 +1378,7 @@ TEST_CASE("/cache/variable/clear/all/") // {{{
 } // }}}
 #endif
 
-ztext::VectorString ztext::cache_variable_list(ztext::ZText* ztext
+ztext::VectorString ztext::variable_list(ztext::ZText* ztext
 	) noexcept
 {
 	#if ZTEXT_ERROR_CHECKS_ENABLED
@@ -1403,7 +1400,7 @@ ztext::VectorString ztext::cache_variable_list(ztext::ZText* ztext
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/cache/variable/list/") // {{{
+TEST_CASE("/variable/list/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -1414,7 +1411,7 @@ TEST_CASE("/cache/variable/list/") // {{{
 
 	std::string name = ztext::eval(zt, var);
 
-	ztext::VectorString list = ztext::cache_variable_list(zt);
+	ztext::VectorString list = ztext::variable_list(zt);
 	CHECK(list.size() == 1);
 	CHECK(list[0]     == "name");
 
@@ -1423,7 +1420,7 @@ TEST_CASE("/cache/variable/list/") // {{{
 } // }}}
 #endif
 
-void ztext::cache_variable_set(ztext::ZText* ztext
+void ztext::variable_set(ztext::ZText* ztext
 	, std::string     name
 	, ztext::Element* element
 	, bool            //read-only
@@ -1734,7 +1731,7 @@ TEST_CASE("/eval/variable/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
-	ztext::cache_variable_set(zt, "var", ztext::element_text_create("X"));
+	ztext::variable_set(zt, "var", ztext::element_text_create("X"));
 
 	SUBCASE("single")
 	{
@@ -2061,7 +2058,7 @@ TEST_CASE("/parse/text/") // {{{
 
 		// -------------------------------------- //
 
-		ztext::cache_clear(zt);
+		ztext::clear(zt);
 		error = ztext::parse(empty, element);
 		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
@@ -2071,7 +2068,7 @@ TEST_CASE("/parse/text/") // {{{
 
 		// -------------------------------------- //
 
-		ztext::cache_clear(zt);
+		ztext::clear(zt);
 		error = ztext::parse(newlines, element);
 		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
@@ -2081,7 +2078,7 @@ TEST_CASE("/parse/text/") // {{{
 
 		// -------------------------------------- //
 
-		ztext::cache_clear(zt);
+		ztext::clear(zt);
 		error = ztext::parse(spaces, element);
 		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
@@ -2091,7 +2088,7 @@ TEST_CASE("/parse/text/") // {{{
 
 		// -------------------------------------- //
 
-		ztext::cache_clear(zt);
+		ztext::clear(zt);
 		error = ztext::parse(tabs, element);
 		CHECK(error   == ztext::Error_None);
 		CHECK(element != nullptr);
@@ -2248,7 +2245,7 @@ TEST_CASE("/parse/variable/") // {{{
 
 	SUBCASE("Variable")
 	{
-		ztext::cache_clear(zt);
+		ztext::clear(zt);
 
 		error = ztext::parse("{{var$}}", element);
 		CHECK(error == ztext::Error_None);
@@ -2265,7 +2262,7 @@ TEST_CASE("/parse/variable/") // {{{
 
 	SUBCASE("Variable With White-Space")
 	{
-		ztext::cache_clear(zt);
+		ztext::clear(zt);
 
 		error = ztext::parse("{{ var $ }}", element);
 		CHECK(error == ztext::Error_None);
@@ -2281,7 +2278,7 @@ TEST_CASE("/parse/variable/") // {{{
 
 	SUBCASE("Variable With Data")
 	{
-		ztext::cache_clear(zt);
+		ztext::clear(zt);
 
 		error = ztext::parse("{{var$foo}}", element);
 		CHECK(error == ztext::Error_None);
