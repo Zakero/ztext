@@ -135,8 +135,9 @@ namespace ztext
 	[[]]          void             command_clear(ZText*, std::string) noexcept;
 	[[]]          void             command_clear_all(ZText*) noexcept;
 
-	[[]]          void             map_clear_all(ZText*) noexcept;
-	[[]]          std::string      map_eval(ZText*, std::string, std::string) noexcept;
+	[[]]          Element*         map(ZText*, std::string, std::string) noexcept;
+	[[]]          void             map_clear(ZText*) noexcept;
+	[[]]          void             map_erase(ZText*, std::string) noexcept;
 	[[]]          VectorString     map_list(ZText*) noexcept;
 	[[]]          VectorString     map_list(ZText*, std::string) noexcept;
 	[[]]          void             map_set(ZText*, std::string, MapStringElement, bool = false) noexcept;
@@ -615,7 +616,8 @@ namespace
 
 		if(element->map.empty() == true)
 		{
-			std::string retval = ztext::map_eval(ztext, element->text, key);
+			ztext::Element* e = ztext::map(ztext, element->text, key);
+			std::string retval = ztext::eval(ztext, e);
 
 			return retval;
 		}
@@ -624,7 +626,8 @@ namespace
 			&& ztext->map_readonly[element->text] == true
 			)
 		{
-			std::string retval = ztext::map_eval(ztext, element->text, key);
+			ztext::Element* e = ztext::map(ztext, element->text, key);
+			std::string retval = ztext::eval(ztext, e);
 
 			return retval;
 		}
@@ -661,8 +664,8 @@ namespace
 	{
 		if(element->child == nullptr)
 		{
-			ztext::Element* variable = ztext::variable(ztext, element->text);
-			std::string retval = ztext::eval(ztext, variable);
+			ztext::Element* e = ztext::variable(ztext, element->text);
+			std::string retval = ztext::eval(ztext, e);
 
 			return retval;
 		}
@@ -671,8 +674,8 @@ namespace
 			&& ztext->variable_readonly[element->text] == true
 			)
 		{
-			ztext::Element* variable = ztext::variable(ztext, element->text);
-			std::string retval = ztext::eval(ztext, variable);
+			ztext::Element* e = ztext::variable(ztext, element->text);
+			std::string retval = ztext::eval(ztext, e);
 
 			return retval;
 		}
@@ -1713,7 +1716,7 @@ void ztext::clear(ztext::ZText* ztext
 
 	ztext::array_clear_all(ztext);
 	ztext::command_clear_all(ztext);
-	ztext::map_clear_all(ztext);
+	ztext::map_clear(ztext);
 	ztext::variable_clear(ztext);
 }
 
@@ -1906,38 +1909,7 @@ TEST_CASE("/array/set/") // {{{
 // }}}
 // {{{ ZText: Map
 
-void ztext::map_clear_all(ztext::ZText* ztext
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(ztext == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'ztext' can not be NULL."
-			<< '\n';
-	}
-	#endif
-
-	for(auto& [name, map] : ztext->map)
-	{
-		map_destroy_(map);
-	}
-
-	ztext->map.clear();
-}
-
-
-#ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/map/clear/all/") // {{{
-{
-	ztext::ZText* zt = ztext::create();
-
-	destroy(zt);
-} // }}}
-#endif
-
-
-std::string ztext::map_eval(ztext::ZText* ztext
+ztext::Element* ztext::map(ztext::ZText* ztext
 	, std::string name
 	, std::string key
 	) noexcept
@@ -1967,22 +1939,94 @@ std::string ztext::map_eval(ztext::ZText* ztext
 
 	if(ztext->map.contains(name) == false)
 	{
-		return "";
+		return nullptr;
 	}
 
 	if(ztext->map[name].contains(key) == false)
 	{
-		return "";
+		return nullptr;
 	}
 
-	std::string retval = ztext::eval(ztext, ztext->map[name][key]);
+	ztext::Element* element = ztext->map[name][key];
 
-	return retval;
+	return element;
 }
 
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/map/eval/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+void ztext::map_clear(ztext::ZText* ztext
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	for(auto& [name, map] : ztext->map)
+	{
+		map_destroy_(map);
+	}
+
+	ztext->map.clear();
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/map/clear/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+void ztext::map_erase(ztext::ZText* ztext
+	, std::string name
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->map.contains(name) == false)
+	{
+		return;
+	}
+
+	map_destroy_(ztext->map[name]);
+
+	ztext->map.erase(name);
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/map/erase/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
