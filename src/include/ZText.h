@@ -120,7 +120,6 @@ namespace ztext
 	using VectorElement    = std::vector<Element*>;
 	using VectorString     = std::vector<std::string>;
 
-
 	// --- ZText --- //
 	[[nodiscard]] ZText*           create() noexcept;
 	[[]]          void             destroy(ZText*&) noexcept;
@@ -155,8 +154,6 @@ namespace ztext
 	// --- Parse --- //
 	[[]]          std::error_code  parse(const std::string&, Element*&) noexcept;
 	[[]]          std::error_code  parse(const std::string&, size_t, size_t, Element*&) noexcept;
-	[[]]          std::error_code  parse(const std::string&, ztext::VectorString&) noexcept;
-	[[]]          std::error_code  parse(const std::string&, size_t, size_t, ztext::VectorString&) noexcept;
 	[[]]          std::error_code  parse(const std::string&, ztext::MapStringString&) noexcept;
 	[[]]          std::error_code  parse(const std::string&, size_t, size_t, ztext::MapStringString&) noexcept;
 
@@ -190,9 +187,6 @@ namespace ztext
 
 	[[nodiscard]] Element*         element_variable_create(const std::string&) noexcept;
 	[[]]          std::error_code  element_variable_set(Element*, Element*) noexcept;
-
-	// --- Debugging --- //
-	[[]]          void             print(const Element*, const bool = false) noexcept;
 }
 
 #ifdef ZTEXT_IMPLEMENTATION // {{{
@@ -349,10 +343,89 @@ namespace
 // }}}
 // {{{ Private: Debugging
 
+#if ZTEXT_DEBUGGING_ENABLED
 namespace
 {
+	std::string to_string_(const ztext::Type type
+		) noexcept
+	{
+		switch(type)
+		{
+			case ztext::Type::Variable: return "variable";
+			case ztext::Type::Text:     return "text";
+			case ztext::Type::Command:  return "command";
+			case ztext::Type::Map:      return "map";
+			case ztext::Type::Array:    return "array";
+		}
+
+		return {};
+	}
+
+
+	void debug_(const ztext::Element* element
+		, const bool children
+		, int        level
+		) noexcept
+	{
+		if(element == nullptr)
+		{
+			printf("%*selement: 0x%08lx <- 0x%08lx -> 0x%08lx ^ 0x%08lx %s (%s)\n"
+				, (level * 3)
+				, ""
+				, (uint64_t)0
+				, (uint64_t)0
+				, (uint64_t)0
+				, (uint64_t)0
+				, ""
+				, ""
+				);
+			return;
+		}
+
+		printf("%*selement: 0x%08lx <- 0x%08lx -> 0x%08lx ^ 0x%08lx %s (%s)\n"
+			, (level * 3)
+			, ""
+			, (uint64_t)element->prev
+			, (uint64_t)element
+			, (uint64_t)element->next
+			, (uint64_t)element->parent
+			, to_string_(element->type).c_str()
+			, element->text.c_str()
+			);
+
+		for(const auto& [key, value] : element->property)
+		{
+			printf("%*sproperty: %s=%s\n"
+				, ((level + 1) * 3)
+				, ""
+				, key.c_str()
+				, value.c_str()
+				);
+		}
+
+		if(children == true)
+		{
+			element = element->child;
+
+			while(element != nullptr)
+			{
+				debug_(element, children, level + 1);
+
+				element = element->next;
+			}
+		}
+	}
+
 	[[maybe_unused]]
-	void debug(const Token& token
+	void debug_(const ztext::Element* element
+		, const bool children = false
+		) noexcept
+	{
+		debug_(element, children, 0);
+	}
+
+	[[maybe_unused]]
+	void debug_(const Token& token
 		, const std::string_view& string
 		) noexcept
 	{
@@ -392,6 +465,7 @@ namespace
 			);
 	}
 }
+#endif
 
 // }}}
 // {{{ Private: Element Utilities
@@ -866,22 +940,6 @@ namespace
 	{
 		return string.substr(begin, (end - begin + 1));
 	}
-
-
-	std::string to_string_(const ztext::Type type
-		) noexcept
-	{
-		switch(type)
-		{
-			case ztext::Type::Variable: return "variable";
-			case ztext::Type::Text:     return "text";
-			case ztext::Type::Command:  return "command";
-			case ztext::Type::Map:      return "map";
-			case ztext::Type::Array:    return "array";
-		}
-
-		return {};
-	}
 }
 
 // }}}
@@ -890,6 +948,9 @@ namespace
 namespace
 {
 	std::error_code parse_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
+	std::error_code parse_(const std::string&, ztext::VectorString&) noexcept;
+	std::error_code parse_(const std::string&, size_t, size_t, ztext::VectorString&) noexcept;
+	std::error_code parse_key_value_(const std::string&, size_t, size_t, std::string&, std::string&) noexcept;
 	std::error_code parse_text_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
 	std::error_code parse_token_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
 	std::error_code parse_token_array_(Token&, const std::string&) noexcept;
@@ -956,6 +1017,182 @@ namespace
 
 		return ztext::Error_None;
 	}
+
+	// }}}
+	// {{{ Private: Parse: VectorString
+
+	std::error_code parse_(const std::string& string
+		, ztext::VectorString& array
+		) noexcept
+	{
+		array.clear();
+
+		#if ZTEXT_ERROR_CHECKS_ENABLED
+		if(string.empty() == true)
+		{
+			return ztext::Error_Parser_No_Text_Found;
+		}
+		#endif
+
+		size_t begin = whitespace_skip_leading_(string, 0);
+		size_t end   = whitespace_skip_trailing_(string, string.size() - 1);
+
+		#if ZTEXT_ERROR_CHECKS_ENABLED
+		if(begin > end)
+		{
+			return ztext::Error_Parser_Array_Begin_Marker_Missing;
+		}
+
+		if(string[begin] != Dataset_Array_Begin)
+		{
+			return ztext::Error_Parser_Array_Begin_Marker_Missing;
+		}
+
+		if(string[end] != Dataset_Array_End)
+		{
+			return ztext::Error_Parser_Array_End_Marker_Missing;
+		}
+		#endif
+
+		return parse_(string, begin, end, array);
+	}
+
+
+	std::error_code parse_(const std::string& string
+		, size_t               begin
+		, size_t               end
+		, ztext::VectorString& array
+		) noexcept
+	{
+		array.clear();
+
+		#if ZTEXT_ERROR_CHECKS_ENABLED
+		if(string.empty() == true)
+		{
+			return ztext::Error_Parser_No_Text_Found;
+		}
+		#endif
+
+		begin = whitespace_skip_leading_(string, begin);
+		end   = whitespace_skip_trailing_(string, end);
+
+		if((begin + 1) == end)
+		{
+			return ztext::Error_None;
+		}
+
+		#if ZTEXT_ERROR_CHECKS_ENABLED
+		if(begin > end)
+		{
+			return ztext::Error_Parser_Array_Begin_Marker_Missing;
+		}
+
+		if(string[begin] != Dataset_Array_Begin)
+		{
+			return ztext::Error_Parser_Array_Begin_Marker_Missing;
+		}
+
+		if(string[end] != Dataset_Array_End)
+		{
+			return ztext::Error_Parser_Array_End_Marker_Missing;
+		}
+		#endif
+
+		size_t kv_begin = begin;
+		size_t kv_end   = 0;
+
+		while(kv_begin < end)
+		{
+			kv_end = find_char_(string, Dataset_Array_Separator, kv_begin + 1, end);
+			if(kv_end > end)
+			{
+				kv_end = end;
+			}
+
+			if(kv_begin + 1 >= kv_end)
+			{
+				return ztext::Error_Parser_Array_Value_Missing;
+			}
+
+			std::string value = substr_(string
+				, whitespace_skip_leading_(string, kv_begin + 1)
+				, whitespace_skip_trailing_(string, kv_end - 1)
+				);
+			value = whitespace_clean_(value);
+
+			array.push_back(value);
+
+			kv_begin = kv_end;
+		}
+
+		return ztext::Error_None;
+	}
+
+
+	#ifdef ZTEXT_IMPLEMENTATION_TEST
+	TEST_CASE("/parse/array/") // {{{
+	{
+		SUBCASE("Invalid")
+		{
+			ztext::VectorString test  = { "foo", "bar" };
+			std::error_code     error = {};
+
+			error = parse_("", test);
+			CHECK(error == ztext::Error_Parser_No_Text_Found);
+			CHECK(test.empty() == true);
+
+			error = parse_("]", test);
+			CHECK(error == ztext::Error_Parser_Array_Begin_Marker_Missing);
+
+			error = parse_("[", test);
+			CHECK(error == ztext::Error_Parser_Array_End_Marker_Missing);
+
+			error = parse_("[,]", test);
+			CHECK(error == ztext::Error_Parser_Array_Value_Missing);
+
+			error = parse_("[,foo]", test);
+			CHECK(error == ztext::Error_Parser_Array_Value_Missing);
+
+			error = parse_("[foo,]", test);
+			CHECK(error == ztext::Error_Parser_Array_Value_Missing);
+		}
+
+		SUBCASE("Empty")
+		{
+			ztext::VectorString test  = {};
+			std::error_code     error = {};
+
+			error = parse_("[]", test);
+			CHECK(error == ztext::Error_None);
+			CHECK(test.empty() == true);
+		}
+
+		SUBCASE("Whitespace")
+		{
+			ztext::VectorString control =
+			{	"foo"
+			,	"abc"
+			,	"123"
+			};
+
+			ztext::VectorString test;
+			std::string string = "[ \
+				foo		\
+				,abc, \
+				123\
+				]";
+			std::error_code error = parse_(string, test);
+			CHECK(error == ztext::Error_None);
+
+			CHECK(control.size() == test.size());
+
+			for(size_t i = 0; i < control.size(); i++)
+			{
+				CHECK(control[i] == test[i]);
+			}
+		}
+	} // }}}
+	#endif
 
 	// }}}
 	// {{{ Private: Parse: Key/Value
@@ -1177,7 +1414,7 @@ namespace
 			if(token.property_begin != 0)
 			{
 				ztext::VectorString raw_data;
-				ztext::parse(string
+				parse_(string
 					, token.property_begin
 					, token.property_end
 					, raw_data
@@ -1951,6 +2188,124 @@ TEST_CASE("/array/set/") // {{{
 #endif
 
 // }}}
+// {{{ ZText: Command
+
+void ztext::command_set(ztext::ZText* ztext
+	, std::string          name
+	, ztext::CommandLambda lambda
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+
+	if(token_name_is_valid(name) == false)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' is not valid."
+			<< '\n';
+	}
+
+	if(lambda == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'lambda' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	ztext->command[name] = lambda;
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/command/create/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+void ztext::command_clear(ztext::ZText* ztext
+	, std::string name
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+
+	if(token_name_is_valid(name) == false)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' is not valid."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->command.contains(name) == false)
+	{
+		return;
+	}
+
+	ztext->command.erase(name);
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/command/clear/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+void ztext::command_clear_all(ztext::ZText* ztext
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	ztext->command.clear();
+}
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/command/clear/all/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+// }}}
 // {{{ ZText: Map
 
 ztext::Element* ztext::map(ztext::ZText* ztext
@@ -2397,124 +2752,6 @@ void ztext::variable_set(ztext::ZText* ztext
 	ztext->variable[name] = element;
 	ztext->variable_readonly[name] = read_only;
 }
-
-// }}}
-// {{{ ZText: Command
-
-void ztext::command_set(ztext::ZText* ztext
-	, std::string          name
-	, ztext::CommandLambda lambda
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(ztext == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'ztext' can not be NULL."
-			<< '\n';
-	}
-
-	if(name.empty() == true)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'name' can not be empty."
-			<< '\n';
-	}
-
-	if(token_name_is_valid(name) == false)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'name' is not valid."
-			<< '\n';
-	}
-
-	if(lambda == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'lambda' can not be NULL."
-			<< '\n';
-	}
-	#endif
-
-	ztext->command[name] = lambda;
-}
-
-#ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/command/create/") // {{{
-{
-	ztext::ZText* zt = ztext::create();
-
-	destroy(zt);
-} // }}}
-#endif
-
-void ztext::command_clear(ztext::ZText* ztext
-	, std::string name
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(ztext == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'ztext' can not be NULL."
-			<< '\n';
-	}
-
-	if(name.empty() == true)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'name' can not be empty."
-			<< '\n';
-	}
-
-	if(token_name_is_valid(name) == false)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'name' is not valid."
-			<< '\n';
-	}
-	#endif
-
-	if(ztext->command.contains(name) == false)
-	{
-		return;
-	}
-
-	ztext->command.erase(name);
-}
-
-#ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/command/clear/") // {{{
-{
-	ztext::ZText* zt = ztext::create();
-
-	destroy(zt);
-} // }}}
-#endif
-
-void ztext::command_clear_all(ztext::ZText* ztext
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(ztext == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'ztext' can not be NULL."
-			<< '\n';
-	}
-	#endif
-
-	ztext->command.clear();
-}
-
-#ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/command/clear/all/") // {{{
-{
-	ztext::ZText* zt = ztext::create();
-
-	destroy(zt);
-} // }}}
-#endif
 
 // }}}
 // {{{ Evaluation
@@ -3480,180 +3717,6 @@ TEST_CASE("/parse/element/variable/") // {{{
 	}
 
 	destroy(zt);
-} // }}}
-#endif
-
-
-std::error_code ztext::parse(const std::string& string
-	, ztext::VectorString& array
-	) noexcept
-{
-	array.clear();
-
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(string.empty() == true)
-	{
-		return Error_Parser_No_Text_Found;
-	}
-	#endif
-
-	size_t begin = whitespace_skip_leading_(string, 0);
-	size_t end   = whitespace_skip_trailing_(string, string.size() - 1);
-
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(begin > end)
-	{
-		return Error_Parser_Array_Begin_Marker_Missing;
-	}
-
-	if(string[begin] != Dataset_Array_Begin)
-	{
-		return Error_Parser_Array_Begin_Marker_Missing;
-	}
-
-	if(string[end] != Dataset_Array_End)
-	{
-		return Error_Parser_Array_End_Marker_Missing;
-	}
-	#endif
-
-	return ztext::parse(string, begin, end, array);
-}
-
-
-std::error_code ztext::parse(const std::string& string
-	, size_t               begin
-	, size_t               end
-	, ztext::VectorString& array
-	) noexcept
-{
-	array.clear();
-
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(string.empty() == true)
-	{
-		return Error_Parser_No_Text_Found;
-	}
-	#endif
-
-	begin = whitespace_skip_leading_(string, begin);
-	end   = whitespace_skip_trailing_(string, end);
-
-	if((begin + 1) == end)
-	{
-		return Error_None;
-	}
-
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(begin > end)
-	{
-		return Error_Parser_Array_Begin_Marker_Missing;
-	}
-
-	if(string[begin] != Dataset_Array_Begin)
-	{
-		return Error_Parser_Array_Begin_Marker_Missing;
-	}
-
-	if(string[end] != Dataset_Array_End)
-	{
-		return Error_Parser_Array_End_Marker_Missing;
-	}
-	#endif
-
-	size_t kv_begin = begin;
-	size_t kv_end   = 0;
-
-	while(kv_begin < end)
-	{
-		kv_end = find_char_(string, Dataset_Array_Separator, kv_begin + 1, end);
-		if(kv_end > end)
-		{
-			kv_end = end;
-		}
-
-		if(kv_begin + 1 >= kv_end)
-		{
-			return Error_Parser_Array_Value_Missing;
-		}
-
-		std::string value = substr_(string
-			, whitespace_skip_leading_(string, kv_begin + 1)
-			, whitespace_skip_trailing_(string, kv_end - 1)
-			);
-		value = whitespace_clean_(value);
-
-		array.push_back(value);
-
-		kv_begin = kv_end;
-	}
-
-	return Error_None;
-}
-
-
-#ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/parse/array/") // {{{
-{
-	SUBCASE("Invalid")
-	{
-		ztext::VectorString test  = { "foo", "bar" };
-		std::error_code     error = {};
-
-		error = ztext::parse("", test);
-		CHECK(error == ztext::Error_Parser_No_Text_Found);
-		CHECK(test.empty() == true);
-
-		error = ztext::parse("]", test);
-		CHECK(error == ztext::Error_Parser_Array_Begin_Marker_Missing);
-
-		error = ztext::parse("[", test);
-		CHECK(error == ztext::Error_Parser_Array_End_Marker_Missing);
-
-		error = ztext::parse("[,]", test);
-		CHECK(error == ztext::Error_Parser_Array_Value_Missing);
-
-		error = ztext::parse("[,foo]", test);
-		CHECK(error == ztext::Error_Parser_Array_Value_Missing);
-
-		error = ztext::parse("[foo,]", test);
-		CHECK(error == ztext::Error_Parser_Array_Value_Missing);
-	}
-
-	SUBCASE("Empty")
-	{
-		ztext::VectorString test  = {};
-		std::error_code     error = {};
-
-		error = ztext::parse("[]", test);
-		CHECK(error == ztext::Error_None);
-		CHECK(test.empty() == true);
-	}
-
-	SUBCASE("Whitespace")
-	{
-		ztext::VectorString control =
-		{	"foo"
-		,	"abc"
-		,	"123"
-		};
-
-		ztext::VectorString test;
-		std::string string = "[ \
-			foo		\
-			,abc, \
-			123\
-			]";
-		std::error_code error = ztext::parse(string, test);
-		CHECK(error == ztext::Error_None);
-
-		CHECK(control.size() == test.size());
-
-		for(size_t i = 0; i < control.size(); i++)
-		{
-			CHECK(control[i] == test[i]);
-		}
-	}
 } // }}}
 #endif
 
@@ -5291,70 +5354,6 @@ TEST_CASE("/element/variable/set/") // {{{
 	destroy(zt);
 } // }}}
 #endif
-
-// }}}
-// {{{ Debugging
-
-void print_(const ztext::Element* element
-	, const bool children
-	, int        level
-	) noexcept
-{
-	if(element == nullptr)
-	{
-		printf("%*selement: 0x%08lx <- 0x%08lx -> 0x%08lx ^ 0x%08lx %s (%s)\n"
-			, (level * 3)
-			, ""
-			, (uint64_t)0
-			, (uint64_t)0
-			, (uint64_t)0
-			, (uint64_t)0
-			, ""
-			, ""
-			);
-		return;
-	}
-
-	printf("%*selement: 0x%08lx <- 0x%08lx -> 0x%08lx ^ 0x%08lx %s (%s)\n"
-		, (level * 3)
-		, ""
-		, (uint64_t)element->prev
-		, (uint64_t)element
-		, (uint64_t)element->next
-		, (uint64_t)element->parent
-		, to_string_(element->type).c_str()
-		, element->text.c_str()
-		);
-
-	for(const auto& [key, value] : element->property)
-	{
-		printf("%*sproperty: %s=%s\n"
-			, ((level + 1) * 3)
-			, ""
-			, key.c_str()
-			, value.c_str()
-			);
-	}
-
-	if(children == true)
-	{
-		element = element->child;
-
-		while(element != nullptr)
-		{
-			print_(element, children, level + 1);
-
-			element = element->next;
-		}
-	}
-}
-
-void ztext::print(const ztext::Element* element
-	, const bool children
-	) noexcept
-{
-	print_(element, children, 0);
-}
 
 // }}}
 
