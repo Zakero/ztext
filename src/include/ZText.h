@@ -131,9 +131,9 @@ namespace ztext
 	[[]]          VectorString     array_list(ZText*) noexcept;
 	[[]]          void             array_set(ZText*, std::string, VectorElement, bool = false) noexcept;
 
-	[[]]          void             command_create(ZText*, std::string, ztext::CommandLambda) noexcept;
-	[[]]          void             command_destroy(ZText*, std::string) noexcept;
-	[[]]          void             command_destroy_all(ZText*) noexcept;
+	[[]]          void             command_set(ZText*, std::string, ztext::CommandLambda) noexcept;
+	[[]]          void             command_clear(ZText*, std::string) noexcept;
+	[[]]          void             command_clear_all(ZText*) noexcept;
 
 	[[]]          void             map_clear_all(ZText*) noexcept;
 	[[]]          std::string      map_eval(ZText*, std::string, std::string) noexcept;
@@ -1680,7 +1680,6 @@ void ztext::destroy(ztext::ZText*& ztext
 	#endif
 
 	ztext::clear(ztext);
-	ztext::command_destroy_all(ztext);
 
 	delete ztext;
 	ztext = nullptr;
@@ -1710,6 +1709,7 @@ void ztext::clear(ztext::ZText* ztext
 	#endif
 
 	ztext::array_clear_all(ztext);
+	ztext::command_clear_all(ztext);
 	ztext::map_clear_all(ztext);
 	ztext::variable_clear_all(ztext);
 }
@@ -2266,7 +2266,7 @@ void ztext::variable_set(ztext::ZText* ztext
 // }}}
 // {{{ ZText: Command
 
-void ztext::command_create(ztext::ZText* ztext
+void ztext::command_set(ztext::ZText* ztext
 	, std::string          name
 	, ztext::CommandLambda lambda
 	) noexcept
@@ -2313,7 +2313,7 @@ TEST_CASE("/command/create/") // {{{
 } // }}}
 #endif
 
-void ztext::command_destroy(ztext::ZText* ztext
+void ztext::command_clear(ztext::ZText* ztext
 	, std::string name
 	) noexcept
 {
@@ -2349,7 +2349,7 @@ void ztext::command_destroy(ztext::ZText* ztext
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/command/destroy/") // {{{
+TEST_CASE("/command/clear/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -2357,7 +2357,7 @@ TEST_CASE("/command/destroy/") // {{{
 } // }}}
 #endif
 
-void ztext::command_destroy_all(ztext::ZText* ztext
+void ztext::command_clear_all(ztext::ZText* ztext
 	) noexcept
 {
 	#if ZTEXT_ERROR_CHECKS_ENABLED
@@ -2373,7 +2373,7 @@ void ztext::command_destroy_all(ztext::ZText* ztext
 }
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/command/destroy/all/") // {{{
+TEST_CASE("/command/clear/all/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -2449,7 +2449,7 @@ std::string ztext::eval(ztext::ZText* ztext
 TEST_CASE("/eval/command/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
-	ztext::command_create(zt
+	ztext::command_set(zt
 		, "cmd"
 		, ZTextCommandLambda(/* ztext, element */)
 		{
@@ -2722,7 +2722,7 @@ TEST_CASE("/parse/element/command/") // {{{
 
 	SUBCASE("Simple")
 	{
-		ztext::command_create(zt
+		ztext::command_set(zt
 			, "cmd"
 			, ZTextCommandLambda()
 			{
@@ -2764,7 +2764,7 @@ TEST_CASE("/parse/element/command/") // {{{
 
 	SUBCASE("Content")
 	{
-		ztext::command_create(zt
+		ztext::command_set(zt
 			, "cmd"
 			, ZTextCommandLambda()
 			{
@@ -2817,7 +2817,7 @@ TEST_CASE("/parse/element/command/") // {{{
 
 	SUBCASE("Property")
 	{
-		ztext::command_create(zt
+		ztext::command_set(zt
 			, "cmd"
 			, ZTextCommandLambda()
 			{
@@ -2868,7 +2868,7 @@ TEST_CASE("/parse/element/command/") // {{{
 
 	SUBCASE("Complex")
 	{
-		ztext::command_create(zt
+		ztext::command_set(zt
 			, "cmd"
 			, ZTextCommandLambda(/* ztext, element */)
 			{
