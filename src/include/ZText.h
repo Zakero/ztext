@@ -7,11 +7,6 @@
  */
 
 /*
- * TODO: Recursive variables
- *       VAR: foo = "Hello, World!"
- *       VAR: bar = "{{$foo}}"
- *       eval {{$bar}} = "Hello, World!"
- *
  * TODO: Compond variables
  *       VAR: foo = "Hello, World!"
  *       VAR: bar = "f"
@@ -99,21 +94,25 @@
 	X(Error_Invalid_Parameter                          ,  1 , "A parameter is invalid" ) \
 	X(Error_Element_In_Use                             ,  2 , "The requested Element is in use by another ZText object" ) \
 	X(Error_Element_Type_Not_Command                   ,  3 , "The expected Element type is command" ) \
-	X(Error_Element_Type_Not_Text                      ,  4 , "The expected Element type is text" ) \
-	X(Error_Element_Type_Not_Variable                  ,  5 , "The expected Element type is a variable" ) \
-	X(Error_Parser_Token_Name_Invalid                  ,  6 , "The Parser found an invalid token name" ) \
-	X(Error_Parser_No_Text_Found                       ,  7 , "The Parser was not able to find any text" ) \
-	X(Error_Parser_Token_End_Marker_Missing            ,  8 , "The Parser was not able to find the token end marker '}}'" ) \
-	X(Error_Parser_Token_Name_Missing                  ,  9 , "The Parser was not able to find the token name"        ) \
-	X(Error_Parser_Token_Identifier_Invalid            , 10 , "The Parser found an invalid token type" ) \
-	X(Error_Parser_Token_Begin_Marker_Missing          , 11 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
-	X(Error_Parser_Command_Property_End_Marker_Missing , 12 , "The Parser was not able to find the command property end marker ')'" ) \
-	X(Error_Parser_Map_Begin_Marker_Missing            , 13 , "The Parser was not able to find the map begin marker '('" ) \
-	X(Error_Parser_Map_End_Marker_Missing              , 14 , "The Parser was not able to find the map end marker ')'" ) \
-	X(Error_Parser_Map_Key_Value_Pair_Missing          , 15 , "The Parser was not able to find the map's key/value pair" ) \
-	X(Error_Parser_Map_Key_Missing                     , 16 , "The Parser was not able to find the key of the map's key/value pair" ) \
-	X(Error_Parser_Map_Value_Missing                   , 17 , "The Parser was not able to find the value of the map's key/value pair" ) \
-
+	X(Error_Element_Type_Not_Map                       ,  4 , "The expected Element type is map" ) \
+	X(Error_Element_Type_Not_Text                      ,  5 , "The expected Element type is text" ) \
+	X(Error_Element_Type_Not_Variable                  ,  6 , "The expected Element type is a variable" ) \
+	X(Error_Parser_Token_Name_Invalid                  ,  7 , "The Parser found an invalid token name" ) \
+	X(Error_Parser_No_Text_Found                       ,  8 , "The Parser was not able to find any text" ) \
+	X(Error_Parser_Token_End_Marker_Missing            ,  9 , "The Parser was not able to find the token end marker '}}'" ) \
+	X(Error_Parser_Token_Name_Missing                  , 10 , "The Parser was not able to find the token name"        ) \
+	X(Error_Parser_Token_Identifier_Invalid            , 11 , "The Parser found an invalid token type" ) \
+	X(Error_Parser_Token_Begin_Marker_Missing          , 12 , "The Parser encountered a token end marker '}}' without a preceding begin marker '{{'" )\
+	X(Error_Parser_Command_Property_End_Marker_Missing , 13 , "The Parser was not able to find the command property end marker ')'" ) \
+	X(Error_Parser_Map_Begin_Marker_Missing            , 14 , "The Parser was not able to find the map begin marker '('" ) \
+	X(Error_Parser_Map_End_Marker_Missing              , 15 , "The Parser was not able to find the map end marker ')'" ) \
+	X(Error_Parser_Map_Key_Value_Pair_Missing          , 16 , "The Parser was not able to find the map's key/value pair" ) \
+	X(Error_Parser_Map_Key_Missing                     , 17 , "The Parser was not able to find the key of the map's key/value pair" ) \
+	X(Error_Parser_Map_Value_Missing                   , 18 , "The Parser was not able to find the value of the map's key/value pair" ) \
+	X(Error_Parser_Map_Index_Invalid                   , 19 , "The Parser encounterd an invalid map index" ) \
+	X(Error_Parser_Map_Contains_Invalid_Data           , 20 , "The Parser encounterd an invalid data in the map token" ) \
+	X(Error_Map_Contains_Invalid_Name                  , 21 , "The Map contains an invalid name" ) \
+	X(Error_Map_Contains_Invalid_Element               , 22 , "The Map contains an invalid element" ) \
 
 // }}}
 
@@ -146,15 +145,17 @@ namespace ztext
 	struct ZText;
 	struct Element;
 
-	using CommandLambda   = std::function<std::string(ZText*, Element*)>;
-	using MapStringString = std::unordered_map<std::string, std::string>;
-	using VectorString    = std::vector<std::string>;
+	using CommandLambda    = std::function<std::string(ZText*, Element*)>;
+	using MapStringElement = std::unordered_map<std::string, Element*>;
+	using MapStringString  = std::unordered_map<std::string, std::string>;
+	using VectorString     = std::vector<std::string>;
 
 
 	// --- ZText --- //
 	[[nodiscard]] ZText*           create() noexcept;
 	[[]]          void             destroy(ZText*&) noexcept;
 	[[]]          void             clear(ZText*) noexcept;
+	[[]]          void             map_clear_all(ZText*) noexcept;
 	[[]]          void             variable_clear_all(ZText*) noexcept;
 	[[]]          VectorString     variable_list(ZText*) noexcept;
 	//[[]]          std::string      variable_eval(ZText* ztext, const std::string& name) noexcept;
@@ -188,6 +189,10 @@ namespace ztext
 	[[]]          std::error_code  element_command_content_set(Element*, Element*) noexcept;
 	[[nodiscard]] MapStringString& element_command_property(Element*) noexcept;
 	[[]]          void             element_command_property_set(Element*, MapStringString) noexcept;
+
+	[[nodiscard]] Element*         element_map_create(const std::string&) noexcept;
+	[[]]          std::error_code  element_map_set(Element*, MapStringElement) noexcept;
+	[[]]          std::error_code  element_map_index_set(Element*, std::string) noexcept;
 
 	[[nodiscard]] Element*         element_text_create(const std::string&) noexcept;
 	[[]]          std::error_code  element_text_set(Element*, const std::string&) noexcept;
@@ -271,26 +276,29 @@ namespace ztext
 	{	Text
 	,	Variable
 	,	Command
+	,	Map
 	};
 
 	struct Element
 	{
-		Element*        next     = nullptr;
-		Element*        prev     = nullptr;
-		Element*        child    = nullptr;
-		Element*        parent   = nullptr;
-		MapStringString property = {};
-		std::string     text     = {};
-		Type            type     = Type::Text;
+		Element*         next     = nullptr;
+		Element*         prev     = nullptr;
+		Element*         child    = nullptr;
+		Element*         parent   = nullptr;
+		MapStringElement map      = {};
+		MapStringString  property = {};
+		std::string      text     = {};
+		Type             type     = Type::Text;
 	};
 
-	using MapStringCommand = std::unordered_map<std::string, CommandLambda>;
-	using MapStringElement = std::unordered_map<std::string, Element*>;
+	using MapStringCommand    = std::unordered_map<std::string, CommandLambda>;
+	using MapMapStringElement = std::unordered_map<std::string, MapStringElement>;
 
 	struct ZText
 	{
-		MapStringElement variable = {};
-		MapStringCommand command  = {};
+		MapStringElement    variable = {};
+		MapStringCommand    command  = {};
+		MapMapStringElement map      = {};
 	};
 }
 
@@ -456,6 +464,37 @@ namespace
 }
 
 // }}}
+// {{{ Private: Map Utilities
+
+namespace
+{
+	ztext::MapStringElement map_copy_(ztext::MapStringElement& map_orig
+		) noexcept
+	{
+		ztext::MapStringElement map_copy = {};
+
+		for(auto& [ name, element ] : map_orig)
+		{
+			map_copy[name] = element_copy_all_(element);
+		}
+
+		return map_copy;
+	}
+
+
+	void map_destroy_(ztext::MapStringElement& map
+		) noexcept
+	{
+		for(auto& [ name, element ] : map)
+		{
+			ztext::element_destroy_all(element);
+		}
+
+		map.clear();
+	}
+}
+
+// }}}
 // {{{ Private: Evaluation: Command
 
 namespace
@@ -478,6 +517,51 @@ namespace
 		std::string retval = ztext->command[element->text](ztext, element);
 
 		return retval;
+	}
+}
+
+// }}}
+// {{{ Private: Evaluation: Map
+
+namespace
+{
+	std::string element_eval_map_(ztext::ZText* ztext
+		, ztext::Element* element
+		) noexcept
+	{
+		if(element->map.empty() == false)
+		{
+			std::string key    = element->property[""];
+			std::string retval = "";
+
+			if(element->map.contains(key) == false)
+			{
+				retval = "";
+			}
+			else
+			{
+				retval = eval(ztext, element->map[key]);
+			}
+
+			if(ztext->map.contains(element->text) == true)
+			{
+				map_destroy_(ztext->map[element->text]);
+			}
+
+			ztext->map[element->text] = map_copy_(element->map);
+
+			return retval;
+		}
+
+		if(ztext->map.contains(element->text) == true)
+		{
+			std::string key = element->property[""];
+			std::string retval = eval(ztext, ztext->map[element->text][key]);
+
+			return retval;
+		}
+
+		return "";
 	}
 }
 
@@ -698,6 +782,7 @@ namespace
 			case ztext::Type::Variable: return "variable";
 			case ztext::Type::Text:     return "text";
 			case ztext::Type::Command:  return "command";
+			case ztext::Type::Map:      return "map";
 		}
 
 		return {};
@@ -712,6 +797,7 @@ namespace
 	std::error_code parse_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
 	std::error_code parse_text_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
 	std::error_code parse_token_(const std::string&, size_t&, size_t&, ztext::Element*&) noexcept;
+	std::error_code parse_token_map_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_identifier_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_name_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_command_(Token&, const std::string&) noexcept;
@@ -1014,11 +1100,50 @@ namespace
 			}
 		}
 
+		// --- Token: Map --- //
+
+		if(token.type == Identifier_Map)
+		{
+			parse_token_map_(token, string);
+
+			element = ztext::element_map_create(
+				substr_(string, token.name_begin, token.name_end)
+				);
+
+			if(token.content_begin != 0)
+			{
+				std::string index = substr_(string, token.content_begin, token.content_end);
+
+				element->property[""] = index;
+			}
+
+			if(token.property_begin != 0)
+			{
+				ztext::MapStringString raw_data;
+				ztext::parse(string
+					, token.property_begin
+					, token.property_end
+					, raw_data
+					);
+				for(auto& [ key, raw_element ] : raw_data)
+				{
+					error = ztext::parse(raw_element
+						, element->map[key]
+						);
+					if(error)
+					{
+						return error;
+					}
+				}
+			}
+		}
+
 		// --- Token: Variable --- //
 
 		if(token.type == Identifier_Variable)
 		{
 			parse_token_variable_(token, string);
+
 			element = ztext::element_variable_create(
 				substr_(string, token.name_begin, token.name_end)
 				);
@@ -1089,6 +1214,7 @@ namespace
 
 		if(string[index] == Identifier_Variable
 			|| string[index] == Identifier_Command
+			|| string[index] == Identifier_Map
 			|| string[index] == Token_End
 			)
 		{
@@ -1120,6 +1246,12 @@ namespace
 		size_t index = whitespace_skip_leading_(string, token.name_end + 1);
 		token.type_index = index;
 
+		if(string[index] == Identifier_Map)
+		{
+			token.type = Identifier_Map;
+			return ztext::Error_None;
+		}
+
 		if(string[index] == Identifier_Variable)
 		{
 			token.type = Identifier_Variable;
@@ -1129,6 +1261,75 @@ namespace
 		token.type = Identifier_Command;
 		return ztext::Error_None;
 		//return ztext::Error_Parser_Token_Identifier_Invalid;
+	}
+
+	// }}}
+	// {{{ Private: Parse: Token: Map
+
+	std::error_code parse_token_map_(Token& token
+		, const std::string& string
+		) noexcept
+	{
+		size_t index = whitespace_skip_leading_(string, token.type_index + 1);
+
+		if(string[index] == Token_End)
+		{
+			return ztext::Error_None;
+		}
+
+		if(string[index] != Dataset_Map_Begin)
+		{
+			if(is_valid_token_name_character_(string[index]) == false)
+			{
+				return ztext::Error_Parser_Map_Index_Invalid;
+			}
+
+			token.content_begin = index;
+			index++;
+
+			while(index < token.end)
+			{
+				if(is_valid_token_name_character_(string[index]) == false)
+				{
+					break;
+				}
+
+				index++;
+			}
+
+			token.content_end = index - 1;
+			index = whitespace_skip_leading_(string, index);
+		}
+
+		if(string[index] == Dataset_Map_Begin)
+		{
+			token.property_begin = index;
+
+			index = find_char_end_(string
+				, Dataset_Map_Begin
+				, Dataset_Map_End
+				, token.property_begin
+				, token.end
+				);
+
+			if(index > token.end)
+			{
+				return ztext::Error_Parser_Map_End_Marker_Missing;
+			}
+
+			token.property_end = index;
+
+			index++;
+		}
+
+		index = whitespace_skip_leading_(string, index);
+
+		if(string[index] != Token_End)
+		{
+			return ztext::Error_Parser_Map_Contains_Invalid_Data;
+		}
+
+		return ztext::Error_None;
 	}
 
 	// }}}
@@ -1306,8 +1507,10 @@ void ztext::clear(ztext::ZText* ztext
 	}
 	#endif
 
+	ztext::map_clear_all(ztext);
 	ztext::variable_clear_all(ztext);
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/clear/") // {{{
@@ -1332,6 +1535,38 @@ TEST_CASE("/clear/") // {{{
 	destroy(zt);
 } // }}}
 #endif
+
+
+void ztext::map_clear_all(ztext::ZText* ztext
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	for(auto& [name, map] : ztext->map)
+	{
+		map_destroy_(map);
+	}
+
+	ztext->map.clear();
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/map/clear/all/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
 
 void ztext::variable_clear_all(ztext::ZText* ztext
 	) noexcept
@@ -1615,6 +1850,10 @@ std::string ztext::eval(ztext::ZText* ztext
 
 			case ztext::Type::Command:
 				retval += element_eval_command_(ztext, element);
+				break;
+
+			case ztext::Type::Map:
+				retval += element_eval_map_(ztext, element);
 				break;
 		}
 
@@ -2036,6 +2275,86 @@ TEST_CASE("/parse/command/") // {{{
 	}
 
 	ztext::destroy(zt);
+} // }}}
+TEST_CASE("/parse/map/") // {{{
+{
+	ztext::ZText*   zt      = ztext::create();
+	ztext::Element* element = nullptr;
+	std::error_code error   = {};
+
+	SUBCASE("Invaild")
+	{
+		error = ztext::parse("{{map#", element);
+		CHECK(error == ztext::Error_Parser_Token_End_Marker_Missing);
+
+		// -------------------------------------- //
+
+		error = ztext::parse("{{map#\\}}", element);
+		CHECK(error == ztext::Error_Parser_Token_End_Marker_Missing);
+
+		// -------------------------------------- //
+
+		error = ztext::parse("{{}}", element);
+		CHECK(error == ztext::Error_Parser_Token_Name_Missing);
+
+		// -------------------------------------- //
+
+		error = ztext::parse("{{#}}", element);
+		CHECK(error == ztext::Error_Parser_Token_Name_Missing);
+
+		// -------------------------------------- //
+
+		error = ztext::parse("{{*#}}", element);
+		CHECK(error == ztext::Error_Parser_Token_Name_Invalid);
+	}
+
+	SUBCASE("No Data")
+	{
+		ztext::clear(zt);
+
+		error = ztext::parse("{{map#}}", element);
+		CHECK(error == ztext::Error_None);
+
+		CHECK(element != nullptr);
+		CHECK(ztext::eval(zt, element) == "");
+
+		ztext::element_destroy(element);
+	}
+
+	SUBCASE("Set Data Then Lookup")
+	{
+		ztext::clear(zt);
+
+		error = ztext::parse("{{map#(foo=bar,abc=xyz)}}", element);
+		CHECK(error == ztext::Error_None);
+
+		CHECK(element != nullptr);
+		CHECK(ztext::eval(zt, element) == "");
+
+		ztext::Element* data;
+		error = ztext::parse("{{map#foo}}", data);
+		CHECK(error == ztext::Error_None);
+		CHECK(ztext::eval(zt, data) == "bar");
+
+		ztext::element_destroy(data);
+		ztext::element_destroy(element);
+		ztext::clear(zt);
+	}
+
+	SUBCASE("Set And Lookup Data")
+	{
+		ztext::clear(zt);
+
+		error = ztext::parse("{{map#abc(foo=bar,abc=xyz)}}", element);
+		CHECK(error == ztext::Error_None);
+
+		CHECK(element != nullptr);
+		CHECK(ztext::eval(zt, element) == "xyz");
+
+		ztext::element_destroy(element);
+	}
+
+	destroy(zt);
 } // }}}
 TEST_CASE("/parse/text/") // {{{
 {
@@ -2789,6 +3108,8 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 		stack.push(element->child);
 	}
 
+	map_destroy_(element->map);
+
 	element_init_(element);
 	delete element;
 	element = nullptr;
@@ -3273,6 +3594,244 @@ TEST_CASE("/element/command/property/set/") // {{{
 	ztext::ZText* zt = ztext::create();
 
 	ztext::destroy(zt);
+} // }}}
+#endif
+
+// }}}
+// {{{ Element: Map
+
+ztext::Element* ztext::element_map_create(const std::string& text
+	) noexcept
+{
+	ztext::Element* element = new ztext::Element;
+
+	element->type = ztext::Type::Map;
+	element->text = text;
+
+	return element;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/map/create/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	SUBCASE("Simple")
+	{
+		ztext::Element* map = ztext::element_map_create("map");
+		CHECK(ztext::eval(zt, map) == "");
+		ztext::element_destroy(map);
+	}
+
+	ztext::destroy(zt);
+} // }}}
+#endif
+
+
+std::error_code ztext::element_map_set(Element* element
+	, MapStringElement map
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+
+	if(element->type != ztext::Type::Map)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'map'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Map;
+	}
+
+	if(map.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'map' can not be empty"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+
+	for(const auto& [ name, element ] : map)
+	{
+		if(name.empty() == true)
+		{
+			ZTEXT_ERROR_MESSAGE
+				<< "Invalid Parameter: 'map' contains an invalid name"
+				<< '\n';
+
+			return Error_Map_Contains_Invalid_Name;
+		}
+
+		if(element == nullptr)
+		{
+			ZTEXT_ERROR_MESSAGE
+				<< "Invalid Parameter: 'map' contains an invalid element"
+				<< '\n';
+
+			return Error_Map_Contains_Invalid_Element;
+		}
+	}
+	#endif
+
+	map_destroy_(element->map);
+	element->map = map;
+
+	return Error_None;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/map/set/") // {{{
+{
+	SUBCASE("Invalid")
+	{
+		ztext::Element* element = nullptr;
+		std::error_code error   = {};
+
+		error = ztext::element_map_set(nullptr, {});
+		CHECK(error == ztext::Error_Invalid_Parameter);
+
+		element = ztext::element_text_create("text");
+		error = ztext::element_map_set(element, {});
+		CHECK(error == ztext::Error_Element_Type_Not_Map);
+		ztext::element_destroy(element);
+
+		element = ztext::element_map_create("map_element");
+		error = ztext::element_map_set(element, {});
+		CHECK(error == ztext::Error_Invalid_Parameter);
+
+		ztext::MapStringElement bad_data = { { "", nullptr } };
+		error = ztext::element_map_set(element, bad_data);
+		CHECK(error == ztext::Error_Map_Contains_Invalid_Name);
+
+		bad_data = { { "Valid Name", nullptr } };
+		error = ztext::element_map_set(element, bad_data);
+		CHECK(error == ztext::Error_Map_Contains_Invalid_Element);
+
+		element_destroy(element);
+	}
+
+	SUBCASE("Valid")
+	{
+		ztext::ZText* zt = ztext::create();
+		ztext::variable_set(zt, "var", ztext::element_text_create("abc"));
+
+		ztext::MapStringElement map_data =
+		{	{ "foo", ztext::element_text_create("hello") }
+		,	{ "bar", ztext::element_variable_create("var") }
+		};
+
+		ztext::Element* element = ztext::element_map_create("map_element");
+		ztext::element_map_set(element, map_data);
+
+		CHECK(ztext::eval(zt, element) == "");
+
+		ztext::element_destroy(element);
+		ztext::destroy(zt);
+	}
+} // }}}
+#endif
+
+
+std::error_code ztext::element_map_index_set(ztext::Element* element
+	, std::string index
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(element == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' can not be null"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+
+	if(element->type != ztext::Type::Map)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'element' must be of type 'map'"
+			<< '\n';
+
+		return Error_Element_Type_Not_Map;
+	}
+
+	if(index.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'index' can not be empty"
+			<< '\n';
+
+		return Error_Invalid_Parameter;
+	}
+	#endif
+
+	element->property[""] = index;
+
+	return ztext::Error_None;
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/element/map/index/set/") // {{{
+{
+	SUBCASE("Invalid")
+	{
+		ztext::Element* element = nullptr;
+		std::error_code error   = {};
+
+		error = ztext::element_map_index_set(nullptr, "");
+		CHECK(error == ztext::Error_Invalid_Parameter);
+
+		element = ztext::element_text_create("text");
+		error = ztext::element_map_index_set(element, "index");
+		CHECK(error == ztext::Error_Element_Type_Not_Map);
+		ztext::element_destroy(element);
+
+		element = ztext::element_map_create("map_element");
+		error = ztext::element_map_index_set(element, "");
+		CHECK(error == ztext::Error_Invalid_Parameter);
+		element_destroy(element);
+	}
+
+	SUBCASE("Valid")
+	{
+		ztext::ZText* zt = ztext::create();
+		ztext::variable_set(zt
+			, "var"
+			, ztext::element_text_create("abc")
+			);
+
+		ztext::MapStringElement map_data =
+		{	{ "foo", ztext::element_text_create("hello") }
+		,	{ "bar", ztext::element_variable_create("var") }
+		};
+
+		ztext::Element* element = ztext::element_map_create("map_element");
+		ztext::element_map_set(element, map_data);
+
+		ztext::element_map_index_set(element, "does not exist");
+		CHECK(ztext::eval(zt, element) == "");
+
+		ztext::element_map_index_set(element, "foo");
+		CHECK(ztext::eval(zt, element) == "hello");
+
+		ztext::element_map_index_set(element, "bar");
+		CHECK(ztext::eval(zt, element) == "abc");
+
+		ztext::element_destroy(element);
+		ztext::destroy(zt);
+	}
 } // }}}
 #endif
 
