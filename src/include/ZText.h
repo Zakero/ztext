@@ -13,8 +13,6 @@
 
 // C++
 #include <functional>
-#include <source_location>
-#include <stack>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -196,7 +194,13 @@ namespace ztext
 
 #ifdef ZTEXT_IMPLEMENTATION // {{{
 
-// {{{ Error
+// {{{ Includes
+
+#include <source_location>
+#include <stack>
+
+// }}}
+// {{{ ErrorCategory_
 
 namespace ztext
 {
