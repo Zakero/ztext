@@ -126,8 +126,9 @@ namespace ztext
 	[[]]          void             destroy(ZText*&) noexcept;
 	[[]]          void             clear(ZText*) noexcept;
 
-	[[]]          void             array_clear_all(ZText*) noexcept;
-	[[]]          std::string      array_eval(ZText*, std::string, size_t) noexcept;
+	[[]]          Element*         array(ZText*, std::string, size_t) noexcept;
+	[[]]          void             array_clear(ZText*) noexcept;
+	[[]]          void             array_erase(ZText*, std::string) noexcept;
 	[[]]          VectorString     array_list(ZText*) noexcept;
 	[[]]          void             array_set(ZText*, std::string, VectorElement, bool = false) noexcept;
 
@@ -546,7 +547,8 @@ namespace
 
 		if(element->array.empty() == true)
 		{
-			std::string retval = ztext::array_eval(ztext, element->text, index);
+			ztext::Element* e = ztext::array(ztext, element->text, index);
+			std::string retval = ztext::eval(ztext, e);
 
 			return retval;
 		}
@@ -555,7 +557,8 @@ namespace
 			&& ztext->array_readonly[element->text] == true
 			)
 		{
-			std::string retval = ztext::array_eval(ztext, element->text, index);
+			ztext::Element* e = ztext::array(ztext, element->text, index);
+			std::string retval = ztext::eval(ztext, e);
 
 			return retval;
 		}
@@ -1714,7 +1717,7 @@ void ztext::clear(ztext::ZText* ztext
 	}
 	#endif
 
-	ztext::array_clear_all(ztext);
+	ztext::array_clear(ztext);
 	ztext::command_clear_all(ztext);
 	ztext::map_clear(ztext);
 	ztext::variable_clear(ztext);
@@ -1748,38 +1751,7 @@ TEST_CASE("/clear/") // {{{
 // }}}
 // {{{ ZText: Array
 
-void ztext::array_clear_all(ztext::ZText* ztext
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(ztext == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'ztext' can not be NULL."
-			<< '\n';
-	}
-	#endif
-
-	for(auto& [name, array] : ztext->array)
-	{
-		array_destroy_(array);
-	}
-
-	ztext->array.clear();
-}
-
-
-#ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/array/clear/all/") // {{{
-{
-	ztext::ZText* zt = ztext::create();
-
-	destroy(zt);
-} // }}}
-#endif
-
-
-std::string ztext::array_eval(ztext::ZText* ztext
+ztext::Element* ztext::array(ztext::ZText* ztext
 	, std::string name
 	, size_t      index
 	) noexcept
@@ -1802,22 +1774,94 @@ std::string ztext::array_eval(ztext::ZText* ztext
 
 	if(ztext->array.contains(name) == false)
 	{
-		return "";
+		return nullptr;
 	}
 
 	if(index >= ztext->array[name].size())
 	{
-		return "";
+		return nullptr;
 	}
 
-	std::string retval = ztext::eval(ztext, ztext->array[name][index]);
+	ztext::Element* element = ztext->array[name][index];
 
-	return retval;
+	return element;
 }
 
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/array/eval/") // {{{
+TEST_CASE("/array/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+void ztext::array_clear(ztext::ZText* ztext
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	for(auto& [name, array] : ztext->array)
+	{
+		array_destroy_(array);
+	}
+
+	ztext->array.clear();
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/array/clear/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+void ztext::array_erase(ztext::ZText* ztext
+	, std::string name
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->array.contains(name) == false)
+	{
+		return;
+	}
+
+	array_destroy_(ztext->array[name]);
+
+	ztext->array.erase(name);
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/array/erase/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
