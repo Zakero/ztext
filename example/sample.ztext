@@ -1,0 +1,17 @@
+{{title Hello World!}}
+
+{{section
+	( title = Insert Paragraph Title
+	)
+	This is a short description about some stuff.
+	With {{b bold}} and {{i italics}} text. Fancy.
+}}
+
+{{section
+	( title = Variables
+	)
+	To use variables use the syntax: \{{variable_name$ the value\}}.
+	Setting the variable {{b foo}} to {{b {{foo$ woot-woot}} }}.
+	{{b foo}} is {{b {{foo$}} }}!
+}}
+
