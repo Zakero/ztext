@@ -13,6 +13,7 @@
 
 // C++
 #include <functional>
+#include <iostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -1030,6 +1031,7 @@ namespace
 	// }}}
 	// {{{ Private: Parse: VectorString
 
+	[[maybe_unused]]
 	std::error_code parse_(const std::string& string
 		, ztext::VectorString& array
 		) noexcept

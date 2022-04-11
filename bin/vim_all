@@ -12,7 +12,9 @@ fi
 
 vim="$vim --remote "
 
-find .   -type f -name "CMakeLists.txt"                             | xargs -n 1 $vim
-find src -type f -name "*.cpp" -o -name "*.h" -o -name "*.hprivate" | xargs -n 1 $vim
+#find ./       -type f -name "CMakeLists.txt"                             | xargs -n 1 $vim
+find src/     -type f -name "*.cpp" -o -name "*.h" -o -name "*.hprivate" | xargs -n 1 $vim
+find example/ -type f -name "*.cpp" -o -name "*.h" -o -name "*.hprivate" | xargs -n 1 $vim
+find test/    -type f -name "*.cpp"                                      | xargs -n 1 $vim
 
 exit
