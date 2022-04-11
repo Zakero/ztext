@@ -129,27 +129,27 @@ namespace ztext
 	[[]]          void             destroy(ZText*&) noexcept;
 	[[]]          void             clear(ZText*) noexcept;
 
-	[[]]          Element*         array(ZText*, std::string, size_t) noexcept;
+	[[nodiscard]] Element*         array(ZText*, std::string, size_t) noexcept;
 	[[]]          void             array_clear(ZText*) noexcept;
 	[[]]          void             array_erase(ZText*, std::string) noexcept;
-	[[]]          VectorString     array_list(ZText*) noexcept;
+	[[nodiscard]] VectorString     array_list(ZText*) noexcept;
 	[[]]          void             array_set(ZText*, std::string, VectorElement, bool = false) noexcept;
 
 	[[]]          void             command_set(ZText*, std::string, ztext::CommandLambda) noexcept;
 	[[]]          void             command_clear(ZText*, std::string) noexcept;
 	[[]]          void             command_clear_all(ZText*) noexcept;
 
-	[[]]          Element*         map(ZText*, std::string, std::string) noexcept;
+	[[nodiscard]] Element*         map(ZText*, std::string, std::string) noexcept;
 	[[]]          void             map_clear(ZText*) noexcept;
 	[[]]          void             map_erase(ZText*, std::string) noexcept;
-	[[]]          VectorString     map_list(ZText*) noexcept;
-	[[]]          VectorString     map_list(ZText*, std::string) noexcept;
+	[[nodiscard]] VectorString     map_list(ZText*) noexcept;
+	[[nodiscard]] VectorString     map_list(ZText*, std::string) noexcept;
 	[[]]          void             map_set(ZText*, std::string, MapStringElement, bool = false) noexcept;
 
-	[[]]          Element*         variable(ZText*, std::string) noexcept;
+	[[nodiscard]] Element*         variable(ZText*, std::string) noexcept;
 	[[]]          void             variable_clear(ZText*) noexcept;
 	[[]]          void             variable_erase(ZText*, std::string) noexcept;
-	[[]]          VectorString     variable_list(ZText*) noexcept;
+	[[nodiscard]] VectorString     variable_list(ZText*) noexcept;
 	[[]]          void             variable_set(ZText*, std::string, Element*, bool = false) noexcept;
 
 	// --- Evaluation --- //
