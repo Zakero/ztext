@@ -82,10 +82,10 @@
 	X(Error_Parser_Array_Contains_Invalid_Data         , 27 , "The Parser encounterd an invalid data in the array token" ) \
 	X(Error_Parser_Array_Value_Missing                 , 28 , "The Parser was not able to find the value in the array" ) \
 
-// }}}
-
 
 #define ZTextCommandLambda(...) [__VA_ARGS__](ztext::ZText* ztext, ztext::Element* element) -> std::string
+
+// }}}
 
 
 /******************************************************************************
@@ -135,9 +135,9 @@ namespace ztext
 	[[nodiscard]] VectorString     array_list(ZText*) noexcept;
 	[[]]          void             array_set(ZText*, std::string, VectorElement, bool = false) noexcept;
 
+	[[]]          void             command_clear(ZText*) noexcept;
+	[[]]          void             command_erase(ZText*, std::string) noexcept;
 	[[]]          void             command_set(ZText*, std::string, ztext::CommandLambda) noexcept;
-	[[]]          void             command_clear(ZText*, std::string) noexcept;
-	[[]]          void             command_clear_all(ZText*) noexcept;
 
 	[[nodiscard]] Element*         map(ZText*, std::string, std::string) noexcept;
 	[[]]          void             map_clear(ZText*) noexcept;
@@ -184,7 +184,7 @@ namespace ztext
 
 	[[nodiscard]] Element*         element_map_create(const std::string&) noexcept;
 	[[]]          std::error_code  element_map_set(Element*, MapStringElement) noexcept;
-	[[]]          std::error_code  element_map_index_set(Element*, std::string) noexcept;
+	[[]]          std::error_code  element_map_key_set(Element*, std::string) noexcept;
 
 	[[nodiscard]] Element*         element_text_create(const std::string&) noexcept;
 	[[]]          std::error_code  element_text_set(Element*, const std::string&) noexcept;
@@ -267,24 +267,30 @@ namespace ztext
 
 namespace ztext
 {
+	// Token Types
 	enum class Type : uint8_t
-	{	Text
-	,	Variable
+	{	Array
 	,	Command
 	,	Map
-	,	Array
+	,	Text
+	,	Variable
 	};
 
+	// Element
+	// The core structure that defines the data relationships.
+	//
+	// TODO: Find a way to merge "map" and "property".
+	// TODO: Should property values be "pre-parsed" ?
 	struct Element
 	{
 		Element*         next     = nullptr;
 		Element*         prev     = nullptr;
 		Element*         child    = nullptr;
 		Element*         parent   = nullptr;
-		MapStringElement map      = {};
-		VectorElement    array    = {};
-		MapStringString  property = {};
-		std::string      text     = {};
+		MapStringElement map      = {};         // Storage for the Map Token
+		VectorElement    array    = {};         // Storage for the Array Token
+		MapStringString  property = {};         // Storage for the Command Token
+		std::string      text     = {};         // Text or the Token Name
 		Type             type     = Type::Text;
 	};
 
@@ -295,13 +301,13 @@ namespace ztext
 
 	struct ZText
 	{
-		MapVectorElement    array             = {};
-		MapStringBool       array_readonly    = {};
-		MapStringCommand    command           = {};
-		MapMapStringElement map               = {};
-		MapStringBool       map_readonly      = {};
-		MapStringElement    variable          = {};
-		MapStringBool       variable_readonly = {};
+		MapVectorElement    array             = {}; // A collection of arrays
+		MapStringBool       array_readonly    = {}; // Determines which arrays are read-only
+		MapStringCommand    command           = {}; // All of the added commands
+		MapMapStringElement map               = {}; // A collection of maps
+		MapStringBool       map_readonly      = {}; // Determines which maps are read-only
+		MapStringElement    variable          = {}; // A collection of variables
+		MapStringBool       variable_readonly = {}; // Determines which variables are read-only
 	};
 }
 
@@ -333,6 +339,9 @@ namespace
 
 namespace
 {
+	// The Token Definition
+	//
+	// Used exclusively and extensively by the parser.
 	struct Token
 	{
 		size_t begin          = 0;
@@ -344,9 +353,7 @@ namespace
 		size_t content_begin  = 0;
 		size_t content_end    = 0;
 		size_t type_index     = 0;
-		size_t assignment     = 0;
 		char   type           = 0;
-		bool   is_valid       = false;
 	};
 }
 
@@ -356,22 +363,25 @@ namespace
 #if ZTEXT_DEBUGGING_ENABLED
 namespace
 {
+	// Convert the Element Type to a string.
+	// Useful for debugging.
 	std::string to_string_(const ztext::Type type
 		) noexcept
 	{
 		switch(type)
 		{
-			case ztext::Type::Variable: return "variable";
-			case ztext::Type::Text:     return "text";
+			case ztext::Type::Array:    return "array";
 			case ztext::Type::Command:  return "command";
 			case ztext::Type::Map:      return "map";
-			case ztext::Type::Array:    return "array";
+			case ztext::Type::Text:     return "text";
+			case ztext::Type::Variable: return "variable";
 		}
 
 		return {};
 	}
 
 
+	// Print information about an element and optionally, its children.
 	void debug_(const ztext::Element* element
 		, const bool children
 		, int        level
@@ -426,6 +436,7 @@ namespace
 		}
 	}
 
+	// Print information about an element and optionally, its children.
 	[[maybe_unused]]
 	void debug_(const ztext::Element* element
 		, const bool children = false
@@ -434,6 +445,7 @@ namespace
 		debug_(element, children, 0);
 	}
 
+	// Print information about a Token
 	[[maybe_unused]]
 	void debug_(const Token& token
 		, const std::string_view& string
@@ -459,10 +471,6 @@ namespace
 		printf("type      : '%c'\n"
 			, token.type
 			);
-		printf("assignment: %lu '%c'\n"
-			, token.assignment
-			, (token.assignment == 0 || token.assignment >= len || token.assignment >= len) ? '\0' : string[token.assignment]
-			);
 		printf("property  : %lu,%lu '%s'\n"
 			, token.property_begin
 			, token.property_end
@@ -486,6 +494,10 @@ namespace
 	ztext::Element* element_copy_all_(ztext::Element*) noexcept;
 	void            element_init_(ztext::Element*) noexcept;
 
+
+	// Creates a copy of an Element.
+	// All the of Element's children will be copied as well.
+	// The Element connections are NOT carried over to the copy.
 	ztext::Element* element_copy_(ztext::Element* element
 		) noexcept
 	{
@@ -504,6 +516,9 @@ namespace
 	}
 
 
+	// Creates a copy of all the Elements starting with element all the way to the tail.
+	// All the of Element children will be copied as well.
+	// And all the copies will be connected in the same order as the original elements.
 	ztext::Element* element_copy_all_(ztext::Element* element
 		) noexcept
 	{
@@ -533,6 +548,7 @@ namespace
 	}
 
 
+	// Initialize an Element to a clean slate.
 	inline void element_init_(ztext::Element* element
 		) noexcept
 	{
@@ -540,6 +556,8 @@ namespace
 		element->prev     = nullptr;
 		element->child    = nullptr;
 		element->parent   = nullptr;
+		element->map      = {};
+		element->array    = {};
 		element->property = {};
 		element->text     = {};
 		element->type     = ztext::Type::Text;
@@ -551,6 +569,7 @@ namespace
 
 namespace
 {
+	// Make a deep copy of an array.
 	ztext::VectorElement array_copy_(ztext::VectorElement& array_orig
 		) noexcept
 	{
@@ -565,6 +584,7 @@ namespace
 	}
 
 
+	// Destroy the entire contents of an array.
 	void array_destroy_(ztext::VectorElement& array
 		) noexcept
 	{
@@ -582,6 +602,7 @@ namespace
 
 namespace
 {
+	// Make a deep copy of a map.
 	ztext::MapStringElement map_copy_(ztext::MapStringElement& map_orig
 		) noexcept
 	{
@@ -596,6 +617,7 @@ namespace
 	}
 
 
+	// Destroy the entire contents of a map.
 	void map_destroy_(ztext::MapStringElement& map
 		) noexcept
 	{
@@ -969,6 +991,7 @@ namespace
 	std::error_code parse_token_name_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_command_(Token&, const std::string&) noexcept;
 	std::error_code parse_token_variable_(Token&, const std::string&) noexcept;
+
 
 	// {{{ Private: Parse
 
@@ -1652,7 +1675,6 @@ namespace
 
 		token.type = Identifier_Command;
 		return ztext::Error_None;
-		//return ztext::Error_Parser_Token_Identifier_Invalid;
 	}
 
 	// }}}
@@ -1908,12 +1930,14 @@ namespace
 // }}}
 // {{{ ZText
 
+// Create a new instance of a ZText object.
 ztext::ZText* ztext::create() noexcept
 {
 	ztext::ZText* ztext = new ztext::ZText;
 
 	return ztext;
 };
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/create/") // {{{
@@ -1926,6 +1950,8 @@ TEST_CASE("/create/") // {{{
 } // }}}
 #endif
 
+
+// Destroy an instance of a ZText object and its contents.
 void ztext::destroy(ztext::ZText*& ztext
 	) noexcept
 {
@@ -1944,6 +1970,7 @@ void ztext::destroy(ztext::ZText*& ztext
 	ztext = nullptr;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/destroy/") // {{{
 {
@@ -1955,6 +1982,7 @@ TEST_CASE("/destroy/") // {{{
 #endif
 
 
+// Clear the contents of a ZText object.
 void ztext::clear(ztext::ZText* ztext
 	) noexcept
 {
@@ -1968,7 +1996,7 @@ void ztext::clear(ztext::ZText* ztext
 	#endif
 
 	ztext::array_clear(ztext);
-	ztext::command_clear_all(ztext);
+	ztext::command_clear(ztext);
 	ztext::map_clear(ztext);
 	ztext::variable_clear(ztext);
 }
@@ -2001,6 +2029,7 @@ TEST_CASE("/clear/") // {{{
 // }}}
 // {{{ ZText: Array
 
+// Access the array data in the ZText object.
 ztext::Element* ztext::array(ztext::ZText* ztext
 	, std::string name
 	, size_t      index
@@ -2048,6 +2077,7 @@ TEST_CASE("/array/") // {{{
 #endif
 
 
+// Clear all array data from the ZText object.
 void ztext::array_clear(ztext::ZText* ztext
 	) noexcept
 {
@@ -2079,6 +2109,7 @@ TEST_CASE("/array/clear/") // {{{
 #endif
 
 
+// Erase the contents of a single array in the ZText object.
 void ztext::array_erase(ztext::ZText* ztext
 	, std::string name
 	) noexcept
@@ -2120,6 +2151,7 @@ TEST_CASE("/array/erase/") // {{{
 #endif
 
 
+// Get a list of all the arrays in the ZText object.
 ztext::VectorString ztext::array_list(ztext::ZText* ztext
 	) noexcept
 {
@@ -2152,6 +2184,10 @@ TEST_CASE("/array/list/") // {{{
 #endif
 
 
+// Set the contents of an array in the ZText object.
+// If the array does not exist, it will be created.
+// If the array does exists, the contents will be destroyed.
+// A deep copy of the "array" will be made and stored in the ZText object.
 void ztext::array_set(ztext::ZText* ztext
 	, std::string          name
 	, ztext::VectorElement array
@@ -2203,6 +2239,81 @@ TEST_CASE("/array/set/") // {{{
 // }}}
 // {{{ ZText: Command
 
+// Remove all the commands from the ZText object.
+void ztext::command_clear(ztext::ZText* ztext
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+	#endif
+
+	ztext->command.clear();
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/command/clear/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+// Remove a command from the ZText object.
+void ztext::command_erase(ztext::ZText* ztext
+	, std::string name
+	) noexcept
+{
+	#if ZTEXT_ERROR_CHECKS_ENABLED
+	if(ztext == nullptr)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'ztext' can not be NULL."
+			<< '\n';
+	}
+
+	if(name.empty() == true)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' can not be empty."
+			<< '\n';
+	}
+
+	if(token_name_is_valid(name) == false)
+	{
+		ZTEXT_ERROR_MESSAGE
+			<< "Invalid Parameter: 'name' is not valid."
+			<< '\n';
+	}
+	#endif
+
+	if(ztext->command.contains(name) == false)
+	{
+		return;
+	}
+
+	ztext->command.erase(name);
+}
+
+
+#ifdef ZTEXT_IMPLEMENTATION_TEST
+TEST_CASE("/command/erase/") // {{{
+{
+	ztext::ZText* zt = ztext::create();
+
+	destroy(zt);
+} // }}}
+#endif
+
+
+// Add or replace a command in the ZText object.
 void ztext::command_set(ztext::ZText* ztext
 	, std::string          name
 	, ztext::CommandLambda lambda
@@ -2241,76 +2352,9 @@ void ztext::command_set(ztext::ZText* ztext
 	ztext->command[name] = lambda;
 }
 
-#ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/command/create/") // {{{
-{
-	ztext::ZText* zt = ztext::create();
-
-	destroy(zt);
-} // }}}
-#endif
-
-void ztext::command_clear(ztext::ZText* ztext
-	, std::string name
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(ztext == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'ztext' can not be NULL."
-			<< '\n';
-	}
-
-	if(name.empty() == true)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'name' can not be empty."
-			<< '\n';
-	}
-
-	if(token_name_is_valid(name) == false)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'name' is not valid."
-			<< '\n';
-	}
-	#endif
-
-	if(ztext->command.contains(name) == false)
-	{
-		return;
-	}
-
-	ztext->command.erase(name);
-}
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/command/clear/") // {{{
-{
-	ztext::ZText* zt = ztext::create();
-
-	destroy(zt);
-} // }}}
-#endif
-
-void ztext::command_clear_all(ztext::ZText* ztext
-	) noexcept
-{
-	#if ZTEXT_ERROR_CHECKS_ENABLED
-	if(ztext == nullptr)
-	{
-		ZTEXT_ERROR_MESSAGE
-			<< "Invalid Parameter: 'ztext' can not be NULL."
-			<< '\n';
-	}
-	#endif
-
-	ztext->command.clear();
-}
-
-#ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/command/clear/all/") // {{{
+TEST_CASE("/command/set/") // {{{
 {
 	ztext::ZText* zt = ztext::create();
 
@@ -2321,6 +2365,7 @@ TEST_CASE("/command/clear/all/") // {{{
 // }}}
 // {{{ ZText: Map
 
+// Access the contents of a map in the ZText object.
 ztext::Element* ztext::map(ztext::ZText* ztext
 	, std::string name
 	, std::string key
@@ -2375,6 +2420,7 @@ TEST_CASE("/map/eval/") // {{{
 #endif
 
 
+// Clear all the map data in the ZText object.
 void ztext::map_clear(ztext::ZText* ztext
 	) noexcept
 {
@@ -2406,6 +2452,7 @@ TEST_CASE("/map/clear/") // {{{
 #endif
 
 
+// Remove a single map from the ZText object.
 void ztext::map_erase(ztext::ZText* ztext
 	, std::string name
 	) noexcept
@@ -2447,6 +2494,7 @@ TEST_CASE("/map/erase/") // {{{
 #endif
 
 
+// Get a list of all the maps in the ZText object.
 ztext::VectorString ztext::map_list(ztext::ZText* ztext
 	) noexcept
 {
@@ -2469,6 +2517,7 @@ ztext::VectorString ztext::map_list(ztext::ZText* ztext
 }
 
 
+// Get a list of all the keys of the specified map in the ZText object.
 ztext::VectorString ztext::map_list(ztext::ZText* ztext
 	, std::string name
 	) noexcept
@@ -2514,6 +2563,10 @@ TEST_CASE("/map/list/") // {{{
 #endif
 
 
+// Set the contents of a map in the ZText object.
+// If the map does not exist, it will be created.
+// If the map does exists, the contents will be destroyed.
+// A deep copy of the "map" will be made and stored in the ZText object.
 void ztext::map_set(ztext::ZText* ztext
 	, std::string             name
 	, ztext::MapStringElement map
@@ -2565,6 +2618,7 @@ TEST_CASE("/map/set/") // {{{
 // }}}
 // {{{ ZText: Variable
 
+// Get the contents of a variable in the ZText object.
 ztext::Element* ztext::variable(ztext::ZText* ztext
 	, std::string name
 	) noexcept
@@ -2596,6 +2650,7 @@ ztext::Element* ztext::variable(ztext::ZText* ztext
 }
 
 
+// Remove all variables from the ZText object.
 void ztext::variable_clear(ztext::ZText* ztext
 	) noexcept
 {
@@ -2643,6 +2698,7 @@ TEST_CASE("/variable/clear/") // {{{
 #endif
 
 
+// Remove a single variable from the ZText object.
 void ztext::variable_erase(ztext::ZText* ztext
 	, std::string name
 	) noexcept
@@ -2684,6 +2740,7 @@ TEST_CASE("/variable/erase/") // {{{
 #endif
 
 
+// Get a list of all variables in the ZText object.
 ztext::VectorString ztext::variable_list(ztext::ZText* ztext
 	) noexcept
 {
@@ -2728,6 +2785,7 @@ TEST_CASE("/variable/list/") // {{{
 #endif
 
 
+// Set the value of a variable in the ZText object.
 void ztext::variable_set(ztext::ZText* ztext
 	, std::string     name
 	, ztext::Element* element
@@ -2769,6 +2827,7 @@ void ztext::variable_set(ztext::ZText* ztext
 // }}}
 // {{{ Evaluation
 
+// The provide element will be evaluated and the resulting string will be returned.
 std::string ztext::eval(ztext::ZText* ztext
 	, ztext::Element* element
 	, bool            to_end
@@ -2827,6 +2886,7 @@ std::string ztext::eval(ztext::ZText* ztext
 
 	return retval;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/eval/command/") // {{{
@@ -2959,6 +3019,8 @@ TEST_CASE("/eval/variable/") // {{{
 // }}}
 // {{{ Parse
 
+// The provided string will be converted into a heirarchy of elements.
+// The head of the heirarchy will be stored in element.
 std::error_code ztext::parse(const std::string& string
 	, ztext::Element*& element
 	) noexcept
@@ -2977,6 +3039,8 @@ std::error_code ztext::parse(const std::string& string
 }
 
 
+// A section of the provided string will be converted into a heirarchy of elements.
+// The head of the heirarchy will be stored in element.
 std::error_code ztext::parse(const std::string& string
 	, size_t           begin
 	, size_t           end
@@ -3015,6 +3079,7 @@ std::error_code ztext::parse(const std::string& string
 
 	return Error_None;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/parse/element/array/") // {{{
@@ -3734,6 +3799,8 @@ TEST_CASE("/parse/element/variable/") // {{{
 #endif
 
 
+// The string will be parsed and stored in the provided map.
+// The first and last characters of the string must be the Map beginning and ending characters.
 std::error_code ztext::parse(const std::string& string
 	, ztext::MapStringString& map
 	) noexcept
@@ -3771,6 +3838,8 @@ std::error_code ztext::parse(const std::string& string
 }
 
 
+// A section of the string will be parsed and stored in the provided map.
+// The first and last characters of the parsed string must be the Map beginning and ending characters.
 std::error_code ztext::parse(const std::string& string
 	, size_t                  begin
 	, size_t                  end
@@ -3936,6 +4005,8 @@ TEST_CASE("/parse/map/") // {{{
 // }}}
 // {{{ Element
 
+// The provided elememnt will be placed after the specified position.
+// If the element is the head of a chain, the entire chain will be added.
 std::error_code ztext::element_append(ztext::Element* position
 	, ztext::Element* element
 	) noexcept
@@ -3995,6 +4066,7 @@ std::error_code ztext::element_append(ztext::Element* position
 	return Error_None;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/append/") // {{{
 {
@@ -4030,6 +4102,8 @@ TEST_CASE("/element/append/") // {{{
 #endif
 
 
+// The provided elememnt will be placed before the specified position.
+// If the element is the head of a chain, the entire chain will be added.
 std::error_code ztext::element_insert(ztext::Element* position
 	, ztext::Element* element
 	) noexcept
@@ -4089,6 +4163,7 @@ std::error_code ztext::element_insert(ztext::Element* position
 	return Error_None;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/insert/") // {{{
 {
@@ -4124,6 +4199,8 @@ TEST_CASE("/element/insert/") // {{{
 #endif
 
 
+// The specified element will be destroyed.
+// If the element is a part of a chain, the chain will be updated as needed.
 ztext::Element* ztext::element_destroy(ztext::Element*& element
 	) noexcept
 {
@@ -4178,6 +4255,7 @@ ztext::Element* ztext::element_destroy(ztext::Element*& element
 	return retval;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/destroy/") // {{{
 {
@@ -4205,6 +4283,8 @@ TEST_CASE("/element/destroy/") // {{{
 #endif
 
 
+// The specified element will be destroyed.
+// If the element is a part of a chain, all the elements from element to the tail will be destroyed.
 void ztext::element_destroy_all(ztext::Element*& element
 	) noexcept
 {
@@ -4223,6 +4303,7 @@ void ztext::element_destroy_all(ztext::Element*& element
 	}
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/destroy/all/") // {{{
 {
@@ -4240,6 +4321,7 @@ TEST_CASE("/element/destroy/all/") // {{{
 #endif
 
 
+// Remove the specified element from the element chain.
 void ztext::element_remove(ztext::Element* element
 	) noexcept
 {
@@ -4275,6 +4357,7 @@ void ztext::element_remove(ztext::Element* element
 	element->parent = nullptr;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/remove/") // {{{
 {
@@ -4302,6 +4385,7 @@ TEST_CASE("/element/remove/") // {{{
 #endif
 
 
+// Get the next element in the chain.
 ztext::Element* ztext::element_next(ztext::Element* element
 		) noexcept
 {
@@ -4316,6 +4400,7 @@ ztext::Element* ztext::element_next(ztext::Element* element
 
 	return element->next;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/next/") // {{{
@@ -4339,6 +4424,7 @@ TEST_CASE("/element/next/") // {{{
 #endif
 
 
+// Get the previous element in the chain.
 ztext::Element* ztext::element_prev(ztext::Element* element
 	) noexcept
 {
@@ -4353,6 +4439,7 @@ ztext::Element* ztext::element_prev(ztext::Element* element
 
 	return element->prev;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/prev/") // {{{
@@ -4376,6 +4463,7 @@ TEST_CASE("/element/prev/") // {{{
 #endif
 
 
+// Find the first element (ie: the head) of the chain.
 ztext::Element* ztext::element_find_head(ztext::Element* element
 	) noexcept
 {
@@ -4395,6 +4483,7 @@ ztext::Element* ztext::element_find_head(ztext::Element* element
 
 	return element;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/find/head/") // {{{
@@ -4419,6 +4508,8 @@ TEST_CASE("/element/find/head/") // {{{
 } // }}}
 #endif
 
+
+// Find the last element (ie: the tail) of the chain.
 ztext::Element* ztext::element_find_tail(ztext::Element* element
 	) noexcept
 {
@@ -4438,6 +4529,7 @@ ztext::Element* ztext::element_find_tail(ztext::Element* element
 
 	return element;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/find/tail/") // {{{
@@ -4465,13 +4557,14 @@ TEST_CASE("/element/find/tail/") // {{{
 // }}}
 // {{{ Element: Array
 
-ztext::Element* ztext::element_array_create(const std::string& text
+// Create an Array Element.
+ztext::Element* ztext::element_array_create(const std::string& name
 	) noexcept
 {
 	ztext::Element* element = new ztext::Element;
 
 	element->type = ztext::Type::Array;
-	element->text = text;
+	element->text = name;
 
 	return element;
 }
@@ -4494,6 +4587,8 @@ TEST_CASE("/element/array/create/") // {{{
 #endif
 
 
+// Set the value of the array in the element.
+// When this element is evaluated by a ZText object, the Array data will be stored in that ZText object.
 std::error_code ztext::element_array_set(Element* element
 	, VectorElement array
 	) noexcept
@@ -4596,6 +4691,7 @@ TEST_CASE("/element/array/set/") // {{{
 #endif
 
 
+// Set the Array index to use when accessing the Array data.
 std::error_code ztext::element_array_index_set(ztext::Element* element
 	, size_t index
 	) noexcept
@@ -4677,6 +4773,8 @@ TEST_CASE("/element/array/index/set/") // {{{
 // }}}
 // {{{ Element: Command
 
+// Create a Command Element
+// When this element is evaluated, the ZText object will provide this element to the Command Lambda.
 ztext::Element* ztext::element_command_create(const std::string& name
 	) noexcept
 {
@@ -4688,6 +4786,7 @@ ztext::Element* ztext::element_command_create(const std::string& name
 	return element;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/command/create/") // {{{
 {
@@ -4697,6 +4796,8 @@ TEST_CASE("/element/command/create/") // {{{
 } // }}}
 #endif
 
+// Access the content of the Command Element.
+// The returned element maybe the head of an element chain.
 ztext::Element* ztext::element_command_content(Element* element
 	) noexcept
 {
@@ -4719,6 +4820,8 @@ ztext::Element* ztext::element_command_content(Element* element
 	return element->child;
 }
 
+
+// Set the content of a Command Element.
 std::error_code ztext::element_command_content_set(Element* element
 	, Element* content
 	) noexcept
@@ -4769,6 +4872,7 @@ std::error_code ztext::element_command_content_set(Element* element
 	return Error_None;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/command/content/set/") // {{{
 {
@@ -4779,6 +4883,7 @@ TEST_CASE("/element/command/content/set/") // {{{
 #endif
 
 
+// Access the Command Properties of this element.
 ztext::MapStringString& ztext::element_command_property(Element* element
 	) noexcept
 {
@@ -4811,6 +4916,8 @@ TEST_CASE("/element/command/property/") // {{{
 } // }}}
 #endif
 
+
+// Set the Command properties for the specified element.
 void ztext::element_command_property_set(Element* element
 	, MapStringString property
 	) noexcept
@@ -4840,6 +4947,7 @@ void ztext::element_command_property_set(Element* element
 	//return Error_None;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/command/property/set/") // {{{
 {
@@ -4852,13 +4960,14 @@ TEST_CASE("/element/command/property/set/") // {{{
 // }}}
 // {{{ Element: Map
 
-ztext::Element* ztext::element_map_create(const std::string& text
+// Create a Map Element.
+ztext::Element* ztext::element_map_create(const std::string& name
 	) noexcept
 {
 	ztext::Element* element = new ztext::Element;
 
 	element->type = ztext::Type::Map;
-	element->text = text;
+	element->text = name;
 
 	return element;
 }
@@ -4881,6 +4990,8 @@ TEST_CASE("/element/map/create/") // {{{
 #endif
 
 
+// Set the value of the map in the element.
+// When this element is evaluated by a ZText object, the contents of the map will be stored in that ZText object.
 std::error_code ztext::element_map_set(Element* element
 	, MapStringElement map
 	) noexcept
@@ -4995,7 +5106,8 @@ TEST_CASE("/element/map/set/") // {{{
 #endif
 
 
-std::error_code ztext::element_map_index_set(ztext::Element* element
+// Set the key to use when this Element is evaluated.
+std::error_code ztext::element_map_key_set(ztext::Element* element
 	, std::string index
 	) noexcept
 {
@@ -5035,23 +5147,23 @@ std::error_code ztext::element_map_index_set(ztext::Element* element
 
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
-TEST_CASE("/element/map/index/set/") // {{{
+TEST_CASE("/element/map/key/set/") // {{{
 {
 	SUBCASE("Invalid")
 	{
 		ztext::Element* element = nullptr;
 		std::error_code error   = {};
 
-		error = ztext::element_map_index_set(nullptr, "");
+		error = ztext::element_map_key_set(nullptr, "");
 		CHECK(error == ztext::Error_Invalid_Parameter);
 
 		element = ztext::element_text_create("text");
-		error = ztext::element_map_index_set(element, "index");
+		error = ztext::element_map_key_set(element, "index");
 		CHECK(error == ztext::Error_Element_Type_Not_Map);
 		ztext::element_destroy(element);
 
 		element = ztext::element_map_create("map_element");
-		error = ztext::element_map_index_set(element, "");
+		error = ztext::element_map_key_set(element, "");
 		CHECK(error == ztext::Error_Invalid_Parameter);
 		element_destroy(element);
 	}
@@ -5072,13 +5184,13 @@ TEST_CASE("/element/map/index/set/") // {{{
 		ztext::Element* element = ztext::element_map_create("map_element");
 		ztext::element_map_set(element, map_data);
 
-		ztext::element_map_index_set(element, "does not exist");
+		ztext::element_map_key_set(element, "does not exist");
 		CHECK(ztext::eval(zt, element) == "");
 
-		ztext::element_map_index_set(element, "foo");
+		ztext::element_map_key_set(element, "foo");
 		CHECK(ztext::eval(zt, element) == "hello");
 
-		ztext::element_map_index_set(element, "bar");
+		ztext::element_map_key_set(element, "bar");
 		CHECK(ztext::eval(zt, element) == "abc");
 
 		ztext::element_destroy(element);
@@ -5090,6 +5202,7 @@ TEST_CASE("/element/map/index/set/") // {{{
 // }}}
 // {{{ Element: Text
 
+// Create a Text Element
 ztext::Element* ztext::element_text_create(const std::string& text
 	) noexcept
 {
@@ -5100,6 +5213,7 @@ ztext::Element* ztext::element_text_create(const std::string& text
 
 	return element;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/text/create/") // {{{
@@ -5125,6 +5239,7 @@ TEST_CASE("/element/text/create/") // {{{
 #endif
 
 
+// Set the contents of the Text Element.
 std::error_code ztext::element_text_set(Element* element
 	, const std::string& text
 	) noexcept
@@ -5153,6 +5268,7 @@ std::error_code ztext::element_text_set(Element* element
 
 	return Error_None;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/text/set/") // {{{
@@ -5197,6 +5313,7 @@ TEST_CASE("/element/text/set/") // {{{
 // }}}
 // {{{ Element: Variable
 
+// Create a Variable Element
 ztext::Element* ztext::element_variable_create(const std::string& name
 	) noexcept
 {
@@ -5216,6 +5333,7 @@ ztext::Element* ztext::element_variable_create(const std::string& name
 	return element;
 }
 
+
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/variable/create/") // {{{
 {
@@ -5232,6 +5350,9 @@ TEST_CASE("/element/variable/create/") // {{{
 } // }}}
 #endif
 
+
+// Set the value of the variable in the element.
+// When this element is evaluated by a ZText object, the contents of the variable will be stored in that ZText object.
 std::error_code ztext::element_variable_set(Element* element
 	, Element* content
 	) noexcept
@@ -5282,6 +5403,7 @@ std::error_code ztext::element_variable_set(Element* element
 
 	return ztext::Error_None;
 }
+
 
 #ifdef ZTEXT_IMPLEMENTATION_TEST
 TEST_CASE("/element/variable/set/") // {{{

@@ -25,6 +25,7 @@ void add_html_commands(ztext::ZText* ztext)
 
 			return retval;
 		});
+
 	ztext::command_set(ztext
 		, "section"
 		, ZTextCommandLambda()
