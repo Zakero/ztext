@@ -1348,17 +1348,18 @@ namespace
 		{
 			if(string[index_end] == Token_Begin
 				&& (index_end + 1) <= end
-				&& string[index_end - 1] != Token_Escape
 				&& string[index_end + 1] == Token_Begin
+				&& string[index_end - 1] != Token_Escape
 				)
 			{
 				depth++;
+				index_end++;
 			}
 
 			if(string[index_end] == Token_End
 				&& (index_end + 1) <= end
-				&& string[index_end - 1] != Token_Escape
 				&& string[index_end + 1] == Token_End
+				&& string[index_end - 1] != Token_Escape
 				)
 			{
 				if(depth == 0)
@@ -1368,6 +1369,7 @@ namespace
 				}
 
 				depth--;
+				index_end++;
 			}
 
 			index_end++;

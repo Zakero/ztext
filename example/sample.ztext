@@ -11,7 +11,7 @@
 	( title = Variables
 	)
 	To use variables use the syntax: \{{variable_name$ the value\}}.
-	Setting the variable {{b foo}} to {{b {{foo$ woot-woot}} }}.
+	Setting the variable {{b foo}} to {{b {{foo$ woot-woot}}}}.
 	{{b foo}} is {{b {{foo$}} }}!
 }}
 
